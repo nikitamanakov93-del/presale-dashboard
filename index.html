@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ru" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Пресейл DreamJob — активность</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Cpath d='M8 22l5-6 4 3 7-9' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('dash-theme');
+        if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <!-- Экран входа -->
+  <div id="login" class="login" hidden>
+    <form id="loginForm" class="login-card" autocomplete="off">
+      <div class="brand-mark lg" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M8 22l5-6 4 3 7-9"/></svg></div>
+      <h1>Пресейл DreamJob</h1>
+      <p class="muted">Дашборд активности. Данные зашифрованы — введите пароль.</p>
+      <label class="field">
+        <span>Пароль</span>
+        <input id="pw" type="password" autocomplete="current-password" required autofocus>
+      </label>
+      <label class="check"><input id="remember" type="checkbox" checked> Не спрашивать до закрытия вкладки</label>
+      <button id="loginBtn" class="btn primary" type="submit">Открыть</button>
+      <p id="loginErr" class="login-err" role="alert"></p>
+    </form>
+  </div>
+
+  <div id="loading" class="loading"><div class="spinner"></div></div>
+
+  <div id="app" class="app" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M8 22l5-6 4 3 7-9"/></svg></div>
+        <div>
+          <div class="brand-title">Пресейл DreamJob</div>
+          <div class="brand-sub">Активность команды</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <label class="select">
+          <span class="sr-only">Неделя</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+          <select id="weekSel" aria-label="Неделя"></select>
+        </label>
+        <button id="themeBtn" class="icon-btn" type="button" aria-label="Тёмная тема" title="Сменить тему">
+          <svg class="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <svg class="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        </button>
+        <button id="logoutBtn" class="icon-btn" type="button" aria-label="Выйти" title="Выйти" hidden>
+          <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="hero">
+        <div>
+          <h1 id="heroTitle">Активность за неделю</h1>
+          <p id="heroSub" class="muted"></p>
+        </div>
+        <div id="chips" class="chips" role="tablist" aria-label="Менеджер"></div>
+      </section>
+
+      <section id="kpis" class="kpis" aria-label="Ключевые показатели"></section>
+
+      <section class="grid g-2">
+        <article class="card">
+          <header class="card-h"><h2>Воронка</h2><span class="muted sm">попытки → звонки &gt;30 сек → встречи</span></header>
+          <div id="funnel" class="funnel"></div>
+        </article>
+        <article class="card">
+          <header class="card-h"><h2>Динамика по неделям</h2>
+            <div class="seg" id="dynSeg" role="tablist">
+              <button data-m="attempts" class="on">Попытки</button>
+              <button data-m="calls30">&gt;30 сек</button>
+              <button data-m="meetings">Встречи</button>
+            </div>
+          </header>
+          <div class="chart-box h260"><canvas id="dynChart" aria-label="Динамика по неделям"></canvas>
+            <div id="dynNote" class="chart-note" hidden>Динамика появится со следующей недели</div>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid g-2-1">
+        <article class="card">
+          <header class="card-h"><h2>Сравнение менеджеров</h2>
+            <div class="seg" id="cmpSeg" role="tablist">
+              <button data-g="calls" class="on">Звонки</button>
+              <button data-g="touch">Касания</button>
+              <button data-g="result">Результат</button>
+            </div>
+          </header>
+          <div class="chart-box h300"><canvas id="cmpChart" aria-label="Сравнение менеджеров"></canvas></div>
+        </article>
+        <article class="card">
+          <header class="card-h"><h2>Профиль активности</h2><span class="muted sm">в % от лидера</span></header>
+          <div class="chart-box h300"><canvas id="radarChart" aria-label="Радар активности"></canvas></div>
+        </article>
+      </section>
+
+      <section class="grid g-1">
+        <article class="card">
+          <header class="card-h"><h2>Причины отказа</h2><span class="muted sm">нажмите на причину — отфильтруется таблица сделок</span></header>
+          <div class="reasons">
+            <div class="chart-box donut"><canvas id="reasonChart" aria-label="Причины отказа"></canvas>
+              <div class="donut-center"><b id="lostTotal">0</b><span>отказов</span></div>
+            </div>
+            <ul id="reasonList" class="reason-list"></ul>
+          </div>
+          <p id="reasonNote" class="muted sm note"></p>
+        </article>
+      </section>
+
+      <section class="grid g-1">
+        <article class="card" id="dealsCard">
+          <header class="card-h wrap">
+            <div class="tabs" id="dealTabs" role="tablist">
+              <button data-t="won" class="on" role="tab">Переданы в продажи <span class="badge" id="cntWon">0</span></button>
+              <button data-t="lost" role="tab">Отказы <span class="badge" id="cntLost">0</span></button>
+            </div>
+            <div class="deal-tools">
+              <span id="reasonFilter" class="filter-pill" hidden></span>
+              <label class="search">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                <input id="q" type="search" placeholder="Поиск по компании, этапу, причине">
+              </label>
+            </div>
+          </header>
+          <div class="table-wrap">
+            <table class="deals">
+              <thead><tr>
+                <th data-k="company">Компания</th>
+                <th data-k="manager">Менеджер</th>
+                <th data-k="date" class="sorted desc">Дата</th>
+                <th data-k="fromStage">Из этапа</th>
+                <th data-k="reason" class="col-reason">Причина</th>
+                <th class="col-link"><span class="sr-only">Ссылка</span></th>
+              </tr></thead>
+              <tbody id="dealRows"></tbody>
+            </table>
+            <p id="dealEmpty" class="empty" hidden>Ничего не найдено</p>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid g-1">
+        <details class="card method">
+          <summary><h2>Методика</h2><span class="muted sm">как считаются показатели</span></summary>
+          <div class="method-body">
+            <dl>
+              <dt>Попытки звонков</dt><dd>Все звонки менеджера в логах AmoCRM и примечаниях за неделю, включая недозвоны.</dd>
+              <dt>Звонки &gt;30 сек</dt><dd>Качественные звонки — разговоры длительностью больше 30 секунд.</dd>
+              <dt>Письма</dt><dd>Отправленные письма по примечаниям и логам внутри CRM (встроенный счётчик почты не используется — он подтягивает данные неполно).</dd>
+              <dt>Мессенджеры</dt><dd>Сообщения клиентам в мессенджерах, привязанных к сделкам.</dd>
+              <dt>Встречи</dt><dd>Переходы сделки в этап «Передан в продажи».</dd>
+              <dt>Отказы</dt><dd>Переходы в «Отказ от покупки». Причина берётся из поля «Причины отказа» (или «Причина отказа Sales»); «Не собрано» — причина ещё не выгружена или не указана в карточке.</dd>
+              <dt>Взяты в работу</dt><dd>Сделки, переведённые из Respondo / «Новый лид_заявка с ЛК» / «Новый лид» в любой другой этап.</dd>
+              <dt>Сразу в отказ</dt><dd>Из «Нового лида» сразу в «Отказ от покупки», без касаний.</dd>
+              <dt>Профиль активности</dt><dd>Каждая ось — значение менеджера в процентах от лучшего результата команды по этой оси за неделю.</dd>
+              <dt>Дельта</dt><dd>Изменение к предыдущей неделе; показывается, только если она есть в данных.</dd>
+            </dl>
+            <p class="muted sm">Период — рабочая неделя (пн–пт). Данные собираются из AmoCRM по воронке «Телемаркетинг» и обновляются еженедельно.</p>
+          </div>
+        </details>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span id="footSrc">Источник: AmoCRM, воронка Телемаркетинг.</span>
+      <span>Обновлено: <b id="footUpd">—</b></span>
+    </footer>
+  </div>
+</body>
+</html>
