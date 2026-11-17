@@ -217,9 +217,9 @@ table.tt{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric
 .more-wrap{display:flex;justify-content:center;padding-top:14px}
 .more-wrap .btn[hidden]{display:none}
 
-/* отработано/распределено */
+/* взято в работу / распределено (только группа 4+) */
 .tt th.mg{text-align:left}
-.tt td.wd{min-width:118px}
+.tt td.wd{min-width:110px}
 .wd-c{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .wd-n{color:var(--muted)} .wd-n b{color:var(--text);font-weight:750}
 .wd-p{font-size:12px;color:var(--muted);font-weight:600}

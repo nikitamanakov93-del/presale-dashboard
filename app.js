@@ -515,14 +515,18 @@
   function tagStats() {
     const deals = S.data.tags.deals;
     const row = (ds) => {
-      const r = { total: ds.length, g4: 0, worked: 0, m: {}, d: {} };
-      tMgrs().forEach((m) => { r.m[m.name] = 0; r.d[m.name] = 0; });
+      const r = { total: ds.length, g4: 0, worked: 0, worked4: 0, m: {}, d: {}, g4m: {}, m4: {} };
+      tMgrs().forEach((m) => { r.m[m.name] = 0; r.d[m.name] = 0; r.g4m[m.name] = 0; r.m4[m.name] = 0; });
       ds.forEach((d) => {
-        if (d.g4) r.g4++;
+        if (d.g4) { r.g4++; if (d.manager) r.g4m[d.manager] = (r.g4m[d.manager] || 0) + 1; }
         if (d.manager) r.d[d.manager] = (r.d[d.manager] || 0) + 1;
-        if (d.worked) { r.worked++; if (d.manager) r.m[d.manager] = (r.m[d.manager] || 0) + 1; }
+        if (d.worked) {
+          r.worked++;
+          if (d.manager) r.m[d.manager] = (r.m[d.manager] || 0) + 1;
+          if (d.g4) { r.worked4++; if (d.manager) r.m4[d.manager] = (r.m4[d.manager] || 0) + 1; }
+        }
       });
-      r.pct = pct1(r.worked, r.g4);
+      r.pct = pct1(r.worked4, r.g4);
       return r;
     };
     return { rows: S.data.tags.tags.map((t) => ({ tag: t, ...row(deals.filter((d) => d.tag === t.id)) })), total: row(deals) };
@@ -561,7 +565,7 @@
       ['total', 'Сделок всего', tot.total, '#4f46e5', '<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.5"/>', `в ${td.tags.length} тегах`],
       ['g4', 'Группа 4+', tot.g4, '#7c3aed', '<path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z"/>', `${fmtPct(pct1(tot.g4, tot.total))} от всех сделок`],
       ['worked', 'Отработано', tot.worked, '#10b981', '<path d="M20 6L9 17l-5-5"/>', 'ушли с «Нового лида»'],
-      ['pct', '% от группы 4+', null, '#f59e0b', '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 9 9h-9z"/>', `${fmt(tot.worked)} из ${fmt(tot.g4)}`],
+      ['pct', '% от группы 4+', null, '#f59e0b', '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 9 9h-9z"/>', `${fmt(tot.worked4)} из ${fmt(tot.g4)}`],
     ];
     const box = $('#tagKpis');
     if (!box.children.length) {
@@ -584,11 +588,12 @@
     // таблица по тегам
     const ms = tMgrs();
     const tbl = $('#tagTable');
-    $('thead', tbl).innerHTML = `<tr><th>Тег</th><th class="num">Всего</th><th class="num">Группа 4+</th><th class="num">Отработано</th><th class="pc">% от группы 4+</th>${ms.map((m) => `<th class="mg" title="отработано / распределено"><span class="who"><i style="background:${tMgrColor(m.name)}"></i>${esc(m.short)}</span></th>`).join('')}</tr>`;
+    $('thead', tbl).innerHTML = `<tr><th>Тег</th><th class="num">Всего</th><th class="num">Группа 4+</th><th class="num">Отработано</th><th class="pc">% от группы 4+</th>${ms.map((m) => `<th class="mg" title="взято в работу из 4+ / распределено из 4+ · только сделки группы 4+"><span class="who"><i style="background:${tMgrColor(m.name)}"></i>${esc(m.short)}</span></th>`).join('')}</tr>`;
     const cells = (r) => `<td class="num">${fmt(r.total)}</td><td class="num">${fmt(r.g4)}</td><td class="num b">${fmt(r.worked)}</td>
       <td class="pc"><div class="pcell"><span class="pbar"><i data-w="${Math.min(100, r.pct)}" style="background:${r.pct >= 100 ? 'var(--good)' : r.pct >= 50 ? 'var(--accent)' : r.pct >= 20 ? '#f59e0b' : 'var(--bad)'}"></i></span><b>${fmtPct(r.pct)}</b></div></td>
-      ${ms.map((m) => { const w = r.m[m.name] || 0, d = r.d[m.name] || 0, p = wdPct(w, d);
-        return d ? `<td class="mg wd" title="${esc(m.short)}: отработано ${w} из ${d} распределённых"><div class="wd-c"><span class="wd-n"><b>${fmt(w)}</b>/${fmt(d)}</span><span class="wd-p">${p}%</span></div><span class="pbar xs"><i data-w="${p}" style="background:${wdColor(p)}"></i></span></td>`
+      ${ms.map((m) => {
+        const w4 = r.m4[m.name] || 0, g4 = r.g4m[m.name] || 0, p = wdPct(w4, g4);
+        return g4 ? `<td class="mg wd" title="${esc(m.short)}: взято в работу ${w4} из ${g4} распределённых сделок группы 4+"><div class="wd-c"><span class="wd-n"><b>${fmt(w4)}</b>/${fmt(g4)}</span><span class="wd-p">${p}%</span></div><span class="pbar xs"><i data-w="${p}" style="background:${wdColor(p)}"></i></span></td>`
           : '<td class="mg wd zero"><div class="wd-c"><span class="wd-n">—</span></div></td>'; }).join('')}`;
     $('tbody', tbl).innerHTML = st.rows.map((r) => `<tr data-t="${r.tag.id}" tabindex="0" class="${String(r.tag.id) === T.tag ? 'on' : ''}">
       <td class="tname"><span class="tdot" style="background:${tagColor(r.tag.id)}"></span><span>${esc(r.tag.name)}</span></td>${cells(r)}</tr>`).join('');
@@ -613,34 +618,33 @@
 
   function renderDist() {
     const st = tagStats(), ms = tMgrs();
-    const bar = (label, dot, w, d, extra = '') => {
-      const p = wdPct(w, d);
-      return `<div class="dist-row${d ? '' : ' none'}"${extra}>
+    const bar = (label, dot, w4, g4, extra = '') => {
+      const p = wdPct(w4, g4);
+      return `<div class="dist-row${g4 ? '' : ' none'}"${extra} title="Показать сделки группы 4+ в таблице">
         <span class="dist-l"><i style="background:${dot}"></i>${esc(label)}</span>
         <span class="dist-bar"><i data-w="${p}" style="background:${wdColor(p)}"></i></span>
-        <span class="dist-v"><b>${fmt(w)}</b>/${fmt(d)} <em>(${p}%)</em></span></div>`;
+        <span class="dist-v"><b>${fmt(w4)}</b>/${fmt(g4)} <em>(${g4 ? p + '%' : '—'})</em></span></div>`;
     };
     let html;
     if (T.dist === 'tag') {
       html = st.rows.map((r) => `<div class="dist-g">
         <div class="dist-h"><span class="tdot" style="background:${tagColor(r.tag.id)}"></span><b>${esc(r.tag.name)}</b>
-          <span class="dist-t">${fmt(ms.reduce((s, m) => s + (r.m[m.name] || 0), 0))}/${fmt(ms.reduce((s, m) => s + (r.d[m.name] || 0), 0))}</span></div>
-        ${ms.filter((m) => r.d[m.name]).map((m) => bar(m.short, tMgrColor(m.name), r.m[m.name] || 0, r.d[m.name], ` data-t="${r.tag.id}" data-m="${esc(m.name)}"`)).join('')}
+          <span class="dist-t" title="взято в работу из 4+ / распределено из 4+">${fmt(r.worked4)}/${fmt(r.g4)}</span></div>
+        ${ms.filter((m) => r.g4m[m.name]).map((m) => bar(m.short, tMgrColor(m.name), r.m4[m.name] || 0, r.g4m[m.name], ` data-t="${r.tag.id}" data-m="${esc(m.name)}"`)).join('')}
       </div>`).join('');
     } else {
       html = ms.map((m) => `<div class="dist-g">
         <div class="dist-h"><span class="tdot round" style="background:${tMgrColor(m.name)}"></span><b>${esc(m.name)}</b>
-          <span class="dist-t">${fmt(st.total.m[m.name] || 0)}/${fmt(st.total.d[m.name] || 0)}</span></div>
-        ${st.rows.filter((r) => r.d[m.name]).map((r) => bar(r.tag.short, tagColor(r.tag.id), r.m[m.name] || 0, r.d[m.name], ` data-t="${r.tag.id}" data-m="${esc(m.name)}"`)).join('')}
+          <span class="dist-t" title="взято в работу из 4+ / распределено из 4+">${fmt(st.total.m4[m.name] || 0)}/${fmt(st.total.g4m[m.name] || 0)}</span></div>
+        ${st.rows.filter((r) => r.g4m[m.name]).map((r) => bar(r.tag.short, tagColor(r.tag.id), r.m4[m.name] || 0, r.g4m[m.name], ` data-t="${r.tag.id}" data-m="${esc(m.name)}"`)).join('')}
       </div>`).join('');
     }
     $('#distGrid').innerHTML = html;
     $('#distGrid').classList.toggle('by-mgr', T.dist === 'mgr');
     requestAnimationFrame(() => $$('#distGrid .dist-bar i').forEach((b) => (b.style.width = b.dataset.w + '%')));
     $$('#distGrid .dist-row[data-t]').forEach((row) => {
-      row.title = 'Показать эти сделки в таблице';
       row.onclick = () => {
-        T.tag = row.dataset.t; T.mgr = row.dataset.m; T.worked = ''; T.limit = 60; syncTagFilters();
+        T.tag = row.dataset.t; T.mgr = row.dataset.m; T.worked = ''; T.g4 = '1'; T.limit = 60; syncTagFilters();
         $$('#tagTable tbody tr').forEach((x) => x.classList.toggle('on', x.dataset.t === T.tag));
         renderTagDeals();
         $('#tagDealsCard').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
