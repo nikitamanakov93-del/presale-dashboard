@@ -500,7 +500,9 @@
 
   /* ---------------- теги ---------------- */
   const TAG_COLORS = ['#4f46e5', '#0ea5e9', '#e11d48', '#f59e0b', '#10b981', '#a855f7', '#64748b'];
-  const T = { tag: '', mgr: '', worked: '', g4: '', q: '', sortK: 'tag', sortDir: 1, limit: 60, byMgr: true };
+  const T = { tag: '', mgr: '', worked: '', g4: '', q: '', sortK: 'tag', sortDir: 1, limit: 60, byMgr: true, dist: 'tag' };
+  const wdColor = (p) => (p >= 100 ? 'var(--good)' : p >= 50 ? 'var(--accent)' : p >= 20 ? '#f59e0b' : 'var(--bad)');
+  const wdPct = (w, d) => (d ? Math.round((w / d) * 100) : 0);
   const tagColor = (id) => TAG_COLORS[(S.data.tags.tags.findIndex((t) => t.id === id) + TAG_COLORS.length) % TAG_COLORS.length];
   const tagObj = (id) => S.data.tags.tags.find((t) => t.id === id) || { name: String(id), short: String(id) };
   const tMgrs = () => S.data.tags.managers;
@@ -513,9 +515,13 @@
   function tagStats() {
     const deals = S.data.tags.deals;
     const row = (ds) => {
-      const r = { total: ds.length, g4: 0, worked: 0, m: {} };
-      tMgrs().forEach((m) => (r.m[m.name] = 0));
-      ds.forEach((d) => { if (d.g4) r.g4++; if (d.worked) { r.worked++; if (d.manager) r.m[d.manager] = (r.m[d.manager] || 0) + 1; } });
+      const r = { total: ds.length, g4: 0, worked: 0, m: {}, d: {} };
+      tMgrs().forEach((m) => { r.m[m.name] = 0; r.d[m.name] = 0; });
+      ds.forEach((d) => {
+        if (d.g4) r.g4++;
+        if (d.manager) r.d[d.manager] = (r.d[d.manager] || 0) + 1;
+        if (d.worked) { r.worked++; if (d.manager) r.m[d.manager] = (r.m[d.manager] || 0) + 1; }
+      });
       r.pct = pct1(r.worked, r.g4);
       return r;
     };
@@ -537,6 +543,7 @@
       if (T.sortK === k) T.sortDir *= -1; else { T.sortK = k; T.sortDir = k === 'group' || k === 'vacancies' ? -1 : 1; }
       renderTagDeals();
     }));
+    $('#distSeg').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; T.dist = b.dataset.d; segOn('#distSeg', b); renderDist(); };
     $('#tagChartSeg').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; T.byMgr = b.dataset.s === '1'; segOn('#tagChartSeg', b); renderTagChart(); };
   }
   function syncTagFilters() { $('#tfTag').value = T.tag; $('#tfMgr').value = T.mgr; $('#tfWorked').value = T.worked; $('#tfG4').value = T.g4; $('#tq').value = T.q; }
@@ -577,10 +584,12 @@
     // таблица по тегам
     const ms = tMgrs();
     const tbl = $('#tagTable');
-    $('thead', tbl).innerHTML = `<tr><th>Тег</th><th class="num">Всего</th><th class="num">Группа 4+</th><th class="num">Отработано</th><th class="pc">% от группы 4+</th>${ms.map((m) => `<th class="num mg"><span class="who"><i style="background:${tMgrColor(m.name)}"></i>${esc(m.short)}</span></th>`).join('')}</tr>`;
+    $('thead', tbl).innerHTML = `<tr><th>Тег</th><th class="num">Всего</th><th class="num">Группа 4+</th><th class="num">Отработано</th><th class="pc">% от группы 4+</th>${ms.map((m) => `<th class="mg" title="отработано / распределено"><span class="who"><i style="background:${tMgrColor(m.name)}"></i>${esc(m.short)}</span></th>`).join('')}</tr>`;
     const cells = (r) => `<td class="num">${fmt(r.total)}</td><td class="num">${fmt(r.g4)}</td><td class="num b">${fmt(r.worked)}</td>
       <td class="pc"><div class="pcell"><span class="pbar"><i data-w="${Math.min(100, r.pct)}" style="background:${r.pct >= 100 ? 'var(--good)' : r.pct >= 50 ? 'var(--accent)' : r.pct >= 20 ? '#f59e0b' : 'var(--bad)'}"></i></span><b>${fmtPct(r.pct)}</b></div></td>
-      ${ms.map((m) => `<td class="num mg${r.m[m.name] ? '' : ' zero'}">${fmt(r.m[m.name] || 0)}</td>`).join('')}`;
+      ${ms.map((m) => { const w = r.m[m.name] || 0, d = r.d[m.name] || 0, p = wdPct(w, d);
+        return d ? `<td class="mg wd" title="${esc(m.short)}: отработано ${w} из ${d} распределённых"><div class="wd-c"><span class="wd-n"><b>${fmt(w)}</b>/${fmt(d)}</span><span class="wd-p">${p}%</span></div><span class="pbar xs"><i data-w="${p}" style="background:${wdColor(p)}"></i></span></td>`
+          : '<td class="mg wd zero"><div class="wd-c"><span class="wd-n">—</span></div></td>'; }).join('')}`;
     $('tbody', tbl).innerHTML = st.rows.map((r) => `<tr data-t="${r.tag.id}" tabindex="0" class="${String(r.tag.id) === T.tag ? 'on' : ''}">
       <td class="tname"><span class="tdot" style="background:${tagColor(r.tag.id)}"></span><span>${esc(r.tag.name)}</span></td>${cells(r)}</tr>`).join('');
     $('tfoot', tbl).innerHTML = `<tr><td class="tname">Итого</td>${cells(tot)}</tr>`;
@@ -596,9 +605,47 @@
       tr.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } };
     });
 
+    renderDist();
     if (window.Chart) renderTagChart();
     syncTagFilters();
     renderTagDeals();
+  }
+
+  function renderDist() {
+    const st = tagStats(), ms = tMgrs();
+    const bar = (label, dot, w, d, extra = '') => {
+      const p = wdPct(w, d);
+      return `<div class="dist-row${d ? '' : ' none'}"${extra}>
+        <span class="dist-l"><i style="background:${dot}"></i>${esc(label)}</span>
+        <span class="dist-bar"><i data-w="${p}" style="background:${wdColor(p)}"></i></span>
+        <span class="dist-v"><b>${fmt(w)}</b>/${fmt(d)} <em>(${p}%)</em></span></div>`;
+    };
+    let html;
+    if (T.dist === 'tag') {
+      html = st.rows.map((r) => `<div class="dist-g">
+        <div class="dist-h"><span class="tdot" style="background:${tagColor(r.tag.id)}"></span><b>${esc(r.tag.name)}</b>
+          <span class="dist-t">${fmt(ms.reduce((s, m) => s + (r.m[m.name] || 0), 0))}/${fmt(ms.reduce((s, m) => s + (r.d[m.name] || 0), 0))}</span></div>
+        ${ms.filter((m) => r.d[m.name]).map((m) => bar(m.short, tMgrColor(m.name), r.m[m.name] || 0, r.d[m.name], ` data-t="${r.tag.id}" data-m="${esc(m.name)}"`)).join('')}
+      </div>`).join('');
+    } else {
+      html = ms.map((m) => `<div class="dist-g">
+        <div class="dist-h"><span class="tdot round" style="background:${tMgrColor(m.name)}"></span><b>${esc(m.name)}</b>
+          <span class="dist-t">${fmt(st.total.m[m.name] || 0)}/${fmt(st.total.d[m.name] || 0)}</span></div>
+        ${st.rows.filter((r) => r.d[m.name]).map((r) => bar(r.tag.short, tagColor(r.tag.id), r.m[m.name] || 0, r.d[m.name], ` data-t="${r.tag.id}" data-m="${esc(m.name)}"`)).join('')}
+      </div>`).join('');
+    }
+    $('#distGrid').innerHTML = html;
+    $('#distGrid').classList.toggle('by-mgr', T.dist === 'mgr');
+    requestAnimationFrame(() => $$('#distGrid .dist-bar i').forEach((b) => (b.style.width = b.dataset.w + '%')));
+    $$('#distGrid .dist-row[data-t]').forEach((row) => {
+      row.title = 'Показать эти сделки в таблице';
+      row.onclick = () => {
+        T.tag = row.dataset.t; T.mgr = row.dataset.m; T.worked = ''; T.limit = 60; syncTagFilters();
+        $$('#tagTable tbody tr').forEach((x) => x.classList.toggle('on', x.dataset.t === T.tag));
+        renderTagDeals();
+        $('#tagDealsCard').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+      };
+    });
   }
 
   const stackTotals = {
