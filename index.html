@@ -65,6 +65,14 @@
     </header>
 
     <main class="container">
+      <nav class="views" id="views" role="tablist" aria-label="Раздел">
+        <button type="button" role="tab" data-v="activity" class="on" aria-selected="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M6 16v-5M11 16V7M16 16v-8M21 16V4"/></svg>Активность за неделю</button>
+        <button type="button" role="tab" data-v="tags" aria-selected="false" id="viewTagsBtn" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.5"/></svg>Теги</button>
+      </nav>
+
+      <div id="viewActivity">
       <section class="hero">
         <div>
           <h1 id="heroTitle">Активность за неделю</h1>
@@ -176,6 +184,94 @@
           </div>
         </details>
       </section>
+      </div><!-- /viewActivity -->
+
+      <!-- ===================== Теги ===================== -->
+      <div id="viewTags" hidden>
+        <section class="hero">
+          <div>
+            <h1>Отработка сделок по тегам</h1>
+            <p id="tagSub" class="muted">Данные на —</p>
+          </div>
+          <span class="asof" id="tagAsOf">Данные на —</span>
+        </section>
+
+        <section id="tagKpis" class="kpis" aria-label="Итоги по тегам"></section>
+
+        <section class="grid g-1">
+          <article class="card">
+            <header class="card-h"><h2>Итоги по тегам</h2><span class="muted sm">нажмите на тег — отфильтруется таблица сделок</span></header>
+            <div class="tt-wrap">
+              <table class="tt" id="tagTable">
+                <thead></thead><tbody></tbody><tfoot></tfoot>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="grid g-1">
+          <article class="card">
+            <header class="card-h"><h2>Отработано менеджерами</h2>
+              <div class="seg" id="tagChartSeg" role="tablist">
+                <button data-s="1" class="on">По менеджерам</button>
+                <button data-s="0">По тегам</button>
+              </div>
+            </header>
+            <div class="chart-box h340"><canvas id="tagChart" aria-label="Отработанные сделки по менеджерам в разрезе тегов"></canvas></div>
+          </article>
+        </section>
+
+        <section class="grid g-1">
+          <article class="card" id="tagDealsCard">
+            <header class="card-h wrap">
+              <h2>Сделки <span class="badge" id="tdCount">0</span></h2>
+              <div class="deal-tools tfilters">
+                <label class="fsel"><span class="sr-only">Тег</span><select id="tfTag" aria-label="Тег"></select></label>
+                <label class="fsel"><span class="sr-only">Менеджер</span><select id="tfMgr" aria-label="Менеджер"></select></label>
+                <label class="fsel"><span class="sr-only">Отработана</span><select id="tfWorked" aria-label="Отработана">
+                  <option value="">Отработана: все</option><option value="1">Отработана: да</option><option value="0">Отработана: нет</option></select></label>
+                <label class="fsel"><span class="sr-only">Группа</span><select id="tfG4" aria-label="Группа">
+                  <option value="">Группа: все</option><option value="1">Группа 4+</option><option value="0">Группа до 4 / пусто</option></select></label>
+                <label class="search">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                  <input id="tq" type="search" placeholder="Поиск по сделке, этапу, id">
+                </label>
+                <button type="button" class="btn ghost" id="tfReset" hidden>Сбросить</button>
+              </div>
+            </header>
+            <div class="table-wrap">
+              <table class="deals tdeals">
+                <thead><tr>
+                  <th data-k="name">Сделка</th>
+                  <th data-k="tag" class="sorted">Тег</th>
+                  <th data-k="stage">Этап</th>
+                  <th data-k="manager">Менеджер</th>
+                  <th data-k="group" class="num">Группа</th>
+                  <th data-k="vacancies" class="num">Вакансии</th>
+                </tr></thead>
+                <tbody id="tdRows"></tbody>
+              </table>
+              <p id="tdEmpty" class="empty" hidden>Ничего не найдено</p>
+              <div class="more-wrap"><button type="button" class="btn ghost" id="tdMore" hidden>Показать ещё</button></div>
+            </div>
+          </article>
+        </section>
+
+        <section class="grid g-1">
+          <details class="card method">
+            <summary><h2>Методика</h2><span class="muted sm">как считаются показатели по тегам</span></summary>
+            <div class="method-body">
+              <dl>
+                <dt>Сделок всего</dt><dd>Все сделки воронки «Телемаркетинг» с этим тегом на дату среза.</dd>
+                <dt>Группа 4+</dt><dd>Сделки, у которых группа клиента — число 4 и выше. Пустая группа в 4+ не входит.</dd>
+                <dt>Отработано</dt><dd>Сделка ушла с этапа «Новый лид» в любой другой этап (касания, «Передан в продажи», «Отказ от покупки» и т. д.).</dd>
+                <dt>% от группы 4+</dt><dd>Отработано ÷ группа 4+, как в Google-таблице «Теги Телемаркетинг». В числителе — все отработанные сделки тега, в знаменателе — только группа 4+.</dd>
+                <dt>По менеджерам</dt><dd>Отработанные сделки по ответственному в AmoCRM на дату среза.</dd>
+              </dl>
+            </div>
+          </details>
+        </section>
+      </div><!-- /viewTags -->
     </main>
 
     <footer class="footer">
