@@ -12,7 +12,8 @@
   const b64e = (u8) => btoa(String.fromCharCode(...new Uint8Array(u8)));
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (n) => Number(n).toLocaleString('ru-RU');
-  const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+  const isNum = (v) => v != null && v !== '' && !Number.isNaN(Number(v));
+  const pct = (a, b) => (isNum(a) && isNum(b) && Number(b) ? Math.round((a / b) * 100) : 0);
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const METRICS = {
@@ -143,7 +144,10 @@
   function totals(w, mgr = S.mgr) {
     const rows = (w ? w.rows : []).filter((r) => mgr === 'all' || r.manager === mgrName(mgr));
     const t = {};
-    Object.keys(METRICS).forEach((k) => (t[k] = rows.reduce((s, r) => s + (r[k] || 0), 0)));
+    Object.keys(METRICS).forEach((k) => {
+      const nums = rows.map((r) => r[k]).filter(isNum).map(Number);
+      t[k] = nums.length ? nums.reduce((s, v) => s + v, 0) : (rows.length ? null : 0);
+    });
     t._n = rows.length;
     return t;
   }
@@ -219,7 +223,10 @@
     const w = weekObj();
     const who = S.mgr === 'all' ? 'вся команда' : mgrName(S.mgr);
     $('#heroTitle').textContent = `Активность за ${w.week}`;
-    $('#heroSub').textContent = `${who[0].toUpperCase() + who.slice(1)} · рабочая неделя${w.start ? ' ' + dRange(w.start, w.end) : ''}`;
+    let sub = `${who[0].toUpperCase() + who.slice(1)} · рабочая неделя${w.start ? ' ' + dRange(w.start, w.end) : ''}`;
+    const upd = S.data.weeks.updated;
+    if (upd && w.end && upd < w.end) sub += ` · данные на ${dLong(upd)}`;
+    $('#heroSub').textContent = sub;
     $('#footSrc').textContent = `Источник: ${S.data.weeks.source || 'AmoCRM, воронка Телемаркетинг'}.`;
     $('#footUpd').textContent = dLong(S.data.weeks.updated);
     renderKpis(animate);
@@ -234,16 +241,26 @@
   function dShort(s) { const d = new Date(s); if (isNaN(d)) return esc(s); return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) + ', ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }); }
 
   function countUp(el, to) {
+    if (el._cu) { cancelAnimationFrame(el._cu); el._cu = 0; }
+    if (!isNum(to)) {
+      el.textContent = 'нет данных';
+      el.dataset.v = '';
+      el.classList.add('na');
+      return;
+    }
+    el.classList.remove('na');
     const from = Number(el.dataset.v || 0);
-    el.dataset.v = to;
-    if (reduceMotion || from === to) { el.textContent = fmt(to); return; }
+    const target = Number(to);
+    el.dataset.v = String(target);
+    if (reduceMotion || from === target) { el.textContent = fmt(target); return; }
     const t0 = performance.now(), dur = 900;
     const step = (t) => {
+      if (el.dataset.v !== String(target)) { el._cu = 0; return; }
       const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3);
-      el.textContent = fmt(Math.round(from + (to - from) * e));
-      if (p < 1) requestAnimationFrame(step);
+      el.textContent = fmt(Math.round(from + (target - from) * e));
+      el._cu = (p < 1) ? requestAnimationFrame(step) : 0;
     };
-    requestAnimationFrame(step);
+    el._cu = requestAnimationFrame(step);
   }
 
   function renderKpis(animate) {
@@ -258,24 +275,31 @@
         </div>`).join('');
     }
     const hint = {
-      calls30: () => `${pct(cur.calls30, cur.attempts)}% от попыток`,
-      meetings: () => `${pct(cur.meetings, cur.calls30)}% от звонков >30 сек`,
+      calls30: () => (isNum(cur.calls30) && isNum(cur.attempts) ? `${pct(cur.calls30, cur.attempts)}% от попыток` : ''),
+      meetings: () => (isNum(cur.meetings) && isNum(cur.calls30) ? `${pct(cur.meetings, cur.calls30)}% от звонков >30 сек` : ''),
       lost: () => '',
       taken: () => '',
-      instantLost: () => cur.taken + cur.instantLost ? `${pct(cur.instantLost, cur.taken + cur.instantLost)}% новых лидов` : '',
+      instantLost: () => {
+        const a = isNum(cur.taken) ? cur.taken : 0, b = isNum(cur.instantLost) ? cur.instantLost : 0;
+        return (a + b) ? `${pct(b, a + b)}% новых лидов` : '';
+      },
       emails: () => '', messengers: () => '', attempts: () => '',
     };
     Object.keys(METRICS).forEach((k) => {
       const card = $(`.kpi[data-k="${k}"]`, box);
       const v = $('.kpi-val', card);
-      if (animate) countUp(v, cur[k]); else { v.textContent = fmt(cur[k]); v.dataset.v = cur[k]; }
+      if (animate) countUp(v, cur[k]);
+      else if (isNum(cur[k])) { v.textContent = fmt(cur[k]); v.dataset.v = cur[k]; v.classList.remove('na'); }
+      else { v.textContent = 'нет данных'; v.dataset.v = ''; v.classList.add('na'); }
       let d = '';
-      if (prev && prev._n) {
+      if (prev && prev._n && isNum(cur[k]) && isNum(prev[k])) {
         const diff = cur[k] - prev[k];
         const good = METRICS[k].lowerBetter ? diff < 0 : diff > 0;
         const cls = diff === 0 ? 'flat' : good ? 'up' : 'down';
         const p = prev[k] ? ` (${diff > 0 ? '+' : ''}${pct(diff, prev[k])}%)` : '';
         d = `<span class="delta ${cls}">${diff > 0 ? '▲ +' : diff < 0 ? '▼ ' : '● '}${fmt(diff)}${p}</span><span>к прошлой неделе</span>`;
+      } else if (prev && prev._n && (!isNum(cur[k]) || !isNum(prev[k]))) {
+        d = '<span>нет данных для сравнения</span>';
       }
       const h = hint[k]();
       $('.kpi-foot', card).innerHTML = d + (h ? `<span>${esc(h)}</span>` : '');
@@ -333,6 +357,7 @@
       const { ctx } = chart;
       chart.data.datasets.forEach((ds, di) => chart.getDatasetMeta(di).data.forEach((pt, i) => {
         ctx.save(); ctx.fillStyle = cssVar('--text'); ctx.font = `700 15px ${Chart.defaults.font.family}`; ctx.textAlign = 'center';
+        if (!isNum(ds.data[i])) { ctx.restore(); return; }
         ctx.fillText(fmt(ds.data[i]), pt.x, pt.y - 16); ctx.restore();
       }));
     },
@@ -342,17 +367,21 @@
     const weeks = S.data.weeks.weeks;
     const labels = weeks.map((w) => w.week);
     const vals = weeks.map((w) => totals(w)[S.dyn]);
+    const numeric = vals.filter(isNum);
     const single = weeks.length < 2;
     const color = METRICS[S.dyn].color;
-    $('#dynNote').hidden = !single;
+    const missing = numeric.length === 0;
+    $('#dynNote').hidden = !single && !missing;
+    if (missing) $('#dynNote').textContent = 'Нет данных по этой метрике';
+    else if (single) $('#dynNote').textContent = 'Динамика появится со следующей недели';
     upsert('dynChart', {
       type: 'line',
-      data: { labels, datasets: [{ label: METRICS[S.dyn].label, data: vals, borderColor: color, backgroundColor: alpha(color, 0.12), fill: !single, tension: 0.35, pointRadius: single ? 8 : 4, pointHoverRadius: 9, pointBackgroundColor: color, pointBorderColor: cssVar('--card'), pointBorderWidth: 3 }] },
+      data: { labels, datasets: [{ label: METRICS[S.dyn].label, data: vals, borderColor: color, backgroundColor: alpha(color, 0.12), fill: !single && numeric.length > 1, tension: 0.35, spanGaps: true, pointRadius: single ? 8 : 4, pointHoverRadius: 9, pointBackgroundColor: color, pointBorderColor: cssVar('--card'), pointBorderWidth: 3 }] },
       options: {
         responsive: true, maintainAspectRatio: false,
-        layout: { padding: { top: 26, bottom: single ? 34 : 0 } },
+        layout: { padding: { top: 26, bottom: (single || missing) ? 34 : 0 } },
         plugins: { legend: { display: false }, pointLabel: { on: true } },
-        scales: { y: { beginAtZero: true, suggestedMax: Math.max(...vals) * 1.25 || 1, grid: { color: cssVar('--line') }, ticks: { precision: 0 } }, x: { grid: { display: false }, offset: single } },
+        scales: { y: { beginAtZero: true, suggestedMax: (numeric.length ? Math.max(...numeric) : 1) * 1.25, grid: { color: cssVar('--line') }, ticks: { precision: 0 } }, x: { grid: { display: false }, offset: single } },
       },
       plugins: [pointLabel],
     });
@@ -362,6 +391,12 @@
     const keys = CMP_GROUPS[S.cmp];
     const w = weekObj();
     const sel = S.mgr === 'all' ? null : mgrName(S.mgr);
+    const missing = keys.every((k) => !w.rows.some((r) => isNum(r[k])));
+    const note = $('#cmpNote');
+    if (note) {
+      note.hidden = !missing;
+      if (missing) note.textContent = 'Письма и мессенджеры за эту неделю ещё не собраны';
+    }
     const datasets = managers().map((m) => {
       const r = w.rows.find((x) => x.manager === m.name) || {};
       const c = mgrColor(m.name), on = !sel || sel === m.name;
@@ -381,17 +416,19 @@
   function renderRadar() {
     const w = weekObj();
     const sel = S.mgr === 'all' ? null : mgrName(S.mgr);
+    const axes = RADAR_AXES.filter((k) => w.rows.some((r) => isNum(r[k])));
+    const use = axes.length ? axes : RADAR_AXES;
     const max = {};
-    RADAR_AXES.forEach((k) => (max[k] = Math.max(1, ...w.rows.map((r) => r[k] || 0))));
+    use.forEach((k) => (max[k] = Math.max(1, ...w.rows.map((r) => (isNum(r[k]) ? r[k] : 0)))));
     const datasets = managers().map((m) => {
       const r = w.rows.find((x) => x.manager === m.name) || {};
       const c = mgrColor(m.name), on = !sel || sel === m.name;
-      return { label: m.short, data: RADAR_AXES.map((k) => Math.round(((r[k] || 0) / max[k]) * 100)), raw: RADAR_AXES.map((k) => r[k] || 0),
+      return { label: m.short, data: use.map((k) => Math.round((((isNum(r[k]) ? r[k] : 0) / max[k]) * 100))), raw: use.map((k) => (isNum(r[k]) ? r[k] : 0)),
         borderColor: on ? c : alpha(c, 0.25), backgroundColor: alpha(c, on ? (sel ? 0.28 : 0.12) : 0.03), pointBackgroundColor: on ? c : alpha(c, 0.25), borderWidth: on && sel ? 3 : 2, pointRadius: 3 };
     });
     upsert('radarChart', {
       type: 'radar',
-      data: { labels: RADAR_AXES.map((k) => METRICS[k].short), datasets },
+      data: { labels: use.map((k) => METRICS[k].short), datasets },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
