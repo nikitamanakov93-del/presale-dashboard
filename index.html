@@ -196,11 +196,9 @@
           <span class="asof" id="tagAsOf">Данные на —</span>
         </section>
 
-        <section id="tagKpis" class="kpis" aria-label="Итоги по тегам"></section>
-
         <section class="grid g-1">
           <article class="card">
-            <header class="card-h"><h2>Итоги по тегам</h2><span class="muted sm">у менеджеров: взято в работу из 4+ / распределено из 4+ · только сделки группы 4+ · нажмите на тег — отфильтруется таблица сделок</span></header>
+            <header class="card-h"><h2>Итоги по тегам</h2><span class="muted sm">у менеджеров: взято в работу из 4+ / распределено из 4+ · только сделки группы 4+</span></header>
             <div class="tt-wrap">
               <table class="tt" id="tagTable">
                 <thead></thead><tbody></tbody><tfoot></tfoot>
@@ -211,61 +209,13 @@
 
         <section class="grid g-1">
           <article class="card" id="distCard">
-            <header class="card-h"><div><h2>Распределение по менеджерам</h2><p class="muted sm sub">взято в работу из 4+ / распределено из 4+ · только сделки группы 4+ · нажмите на полосу — сделки этого менеджера в теге, только группа 4+</p></div>
+            <header class="card-h"><div><h2>Распределение по менеджерам</h2><p class="muted sm sub">взято в работу из 4+ / распределено из 4+ · только сделки группы 4+</p></div>
               <div class="seg" id="distSeg" role="tablist">
                 <button data-d="tag" class="on">По тегам</button>
                 <button data-d="mgr">По менеджерам</button>
               </div>
             </header>
             <div id="distGrid" class="dist-grid"></div>
-          </article>
-        </section>
-
-        <section class="grid g-1">
-          <article class="card">
-            <header class="card-h"><h2>Отработано менеджерами</h2>
-              <div class="seg" id="tagChartSeg" role="tablist">
-                <button data-s="1" class="on">По менеджерам</button>
-                <button data-s="0">По тегам</button>
-              </div>
-            </header>
-            <div class="chart-box h340"><canvas id="tagChart" aria-label="Отработанные сделки по менеджерам в разрезе тегов"></canvas></div>
-          </article>
-        </section>
-
-        <section class="grid g-1">
-          <article class="card" id="tagDealsCard">
-            <header class="card-h wrap">
-              <h2>Сделки <span class="badge" id="tdCount">0</span></h2>
-              <div class="deal-tools tfilters">
-                <label class="fsel"><span class="sr-only">Тег</span><select id="tfTag" aria-label="Тег"></select></label>
-                <label class="fsel"><span class="sr-only">Менеджер</span><select id="tfMgr" aria-label="Менеджер"></select></label>
-                <label class="fsel"><span class="sr-only">Отработана</span><select id="tfWorked" aria-label="Отработана">
-                  <option value="">Отработана: все</option><option value="1">Отработана: да</option><option value="0">Отработана: нет</option></select></label>
-                <label class="fsel"><span class="sr-only">Группа</span><select id="tfG4" aria-label="Группа">
-                  <option value="">Группа: все</option><option value="1">Группа 4+</option><option value="0">Группа до 4 / пусто</option></select></label>
-                <label class="search">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-                  <input id="tq" type="search" placeholder="Поиск по сделке, этапу, id">
-                </label>
-                <button type="button" class="btn ghost" id="tfReset" hidden>Сбросить</button>
-              </div>
-            </header>
-            <div class="table-wrap">
-              <table class="deals tdeals">
-                <thead><tr>
-                  <th data-k="name">Сделка</th>
-                  <th data-k="tag" class="sorted">Тег</th>
-                  <th data-k="stage">Этап</th>
-                  <th data-k="manager">Менеджер</th>
-                  <th data-k="group" class="num">Группа</th>
-                  <th data-k="vacancies" class="num">Вакансии</th>
-                </tr></thead>
-                <tbody id="tdRows"></tbody>
-              </table>
-              <p id="tdEmpty" class="empty" hidden>Ничего не найдено</p>
-              <div class="more-wrap"><button type="button" class="btn ghost" id="tdMore" hidden>Показать ещё</button></div>
-            </div>
           </article>
         </section>
 

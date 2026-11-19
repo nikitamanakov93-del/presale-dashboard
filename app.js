@@ -500,17 +500,14 @@
 
   /* ---------------- теги ---------------- */
   const TAG_COLORS = ['#4f46e5', '#0ea5e9', '#e11d48', '#f59e0b', '#10b981', '#a855f7', '#64748b'];
-  const T = { tag: '', mgr: '', worked: '', g4: '', q: '', sortK: 'tag', sortDir: 1, limit: 60, byMgr: true, dist: 'tag' };
+  const T = { tag: '', dist: 'tag' };
   const wdColor = (p) => (p >= 100 ? 'var(--good)' : p >= 50 ? 'var(--accent)' : p >= 20 ? '#f59e0b' : 'var(--bad)');
   const wdPct = (w, d) => (d ? Math.round((w / d) * 100) : 0);
   const tagColor = (id) => TAG_COLORS[(S.data.tags.tags.findIndex((t) => t.id === id) + TAG_COLORS.length) % TAG_COLORS.length];
-  const tagObj = (id) => S.data.tags.tags.find((t) => t.id === id) || { name: String(id), short: String(id) };
   const tMgrs = () => S.data.tags.managers;
-  const tMgrShort = (n) => (tMgrs().find((m) => m.name === n) || {}).short || n || '—';
   const tMgrColor = (n) => { const i = tMgrs().findIndex((m) => m.name === n); return i >= 0 && i < 3 ? cssVar(`--m${i + 1}`) : '#94a3b8'; };
   const pct1 = (a, b) => (b ? (a / b) * 100 : 0);
   const fmtPct = (v) => (Math.round(v * 10) / 10).toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + '%';
-  const fmtNum = (v) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('ru-RU'));
 
   function tagStats() {
     const deals = S.data.tags.deals;
@@ -533,24 +530,8 @@
   }
 
   function initTags() {
-    const td = S.data.tags;
-    $('#tfTag').innerHTML = '<option value="">Тег: все</option>' + td.tags.map((t) => `<option value="${t.id}">${esc(t.short)}</option>`).join('');
-    $('#tfMgr').innerHTML = '<option value="">Менеджер: все</option>' + td.managers.map((m) => `<option value="${esc(m.name)}">${esc(m.short)}</option>`).join('')
-      + (td.deals.some((d) => !td.managers.some((m) => m.name === d.manager)) ? '<option value="__other">Другие</option>' : '');
-    const bind = (id, k) => ($(id).onchange = (e) => { T[k] = e.target.value; T.limit = 60; renderTagDeals(); });
-    bind('#tfTag', 'tag'); bind('#tfMgr', 'mgr'); bind('#tfWorked', 'worked'); bind('#tfG4', 'g4');
-    $('#tq').oninput = (e) => { T.q = e.target.value.trim().toLowerCase(); T.limit = 60; renderTagDeals(); };
-    $('#tfReset').onclick = () => { Object.assign(T, { tag: '', mgr: '', worked: '', g4: '', q: '', limit: 60 }); syncTagFilters(); renderTagDeals(); };
-    $('#tdMore').onclick = () => { T.limit += 100; renderTagDeals(); };
-    $$('#tagDealsCard th[data-k]').forEach((th) => (th.onclick = () => {
-      const k = th.dataset.k;
-      if (T.sortK === k) T.sortDir *= -1; else { T.sortK = k; T.sortDir = k === 'group' || k === 'vacancies' ? -1 : 1; }
-      renderTagDeals();
-    }));
     $('#distSeg').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; T.dist = b.dataset.d; segOn('#distSeg', b); renderDist(); };
-    $('#tagChartSeg').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; T.byMgr = b.dataset.s === '1'; segOn('#tagChartSeg', b); renderTagChart(); };
   }
-  function syncTagFilters() { $('#tfTag').value = T.tag; $('#tfMgr').value = T.mgr; $('#tfWorked').value = T.worked; $('#tfG4').value = T.g4; $('#tq').value = T.q; }
 
   function renderTags(animate) {
     const td = S.data.tags, st = tagStats(), tot = st.total;
@@ -559,31 +540,6 @@
     $('#tagSub').textContent = `Воронка «Телемаркетинг» · ${td.tags.length} тегов · ${fmt(tot.total)} сделок · данные на ${asOf}`;
     $('#footSrc').textContent = `Источник: ${td.source || 'AmoCRM'}.`;
     $('#footUpd').textContent = dLong(td.updated);
-
-    // плитки
-    const tiles = [
-      ['total', 'Сделок всего', tot.total, '#4f46e5', '<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.5"/>', `в ${td.tags.length} тегах`],
-      ['g4', 'Группа 4+', tot.g4, '#7c3aed', '<path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z"/>', `${fmtPct(pct1(tot.g4, tot.total))} от всех сделок`],
-      ['worked', 'Отработано', tot.worked, '#10b981', '<path d="M20 6L9 17l-5-5"/>', 'ушли с «Нового лида»'],
-      ['pct', '% от группы 4+', null, '#f59e0b', '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 9 9h-9z"/>', `${fmt(tot.worked4)} из ${fmt(tot.g4)}`],
-    ];
-    const box = $('#tagKpis');
-    if (!box.children.length) {
-      box.innerHTML = tiles.map(([k, l, , c, ic], n) => `
-        <div class="kpi" data-k="${k}" style="--kc:${c};animation-delay:${n * 40}ms">
-          <div class="kpi-top"><span class="kpi-ic"><svg viewBox="0 0 24 24">${ic}</svg></span>${esc(l)}</div>
-          <div class="kpi-val" data-v="0">0</div>
-          <div class="kpi-foot"></div>
-        </div>`).join('');
-    }
-    tiles.forEach(([k, , v, , , foot]) => {
-      const card = $(`.kpi[data-k="${k}"]`, box), el = $('.kpi-val', card);
-      if (k === 'pct') { el.textContent = fmtPct(tot.pct); }
-      else if (animate) countUp(el, v); else { el.textContent = fmt(v); el.dataset.v = v; }
-      $('.kpi-foot', card).innerHTML = k === 'pct'
-        ? `<span class="pbar sm"><i style="width:${Math.min(100, tot.pct)}%"></i></span><span>${esc(foot)}</span>`
-        : `<span>${esc(foot)}</span>`;
-    });
 
     // таблица по тегам
     const ms = tMgrs();
@@ -601,26 +557,21 @@
     requestAnimationFrame(() => $$('#tagTable .pbar i[data-w]').forEach((b) => (b.style.width = b.dataset.w + '%')));
     $$('#tagTable tbody tr').forEach((tr) => {
       const pick = () => {
-        T.tag = T.tag === tr.dataset.t ? '' : tr.dataset.t; T.limit = 60; syncTagFilters();
+        T.tag = T.tag === tr.dataset.t ? '' : tr.dataset.t;
         $$('#tagTable tbody tr').forEach((x) => x.classList.toggle('on', x.dataset.t === T.tag));
-        renderTagDeals();
-        if (T.tag) $('#tagDealsCard').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
       };
       tr.onclick = pick;
       tr.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } };
     });
 
     renderDist();
-    if (window.Chart) renderTagChart();
-    syncTagFilters();
-    renderTagDeals();
   }
 
   function renderDist() {
     const st = tagStats(), ms = tMgrs();
-    const bar = (label, dot, w4, g4, extra = '') => {
+    const bar = (label, dot, w4, g4) => {
       const p = wdPct(w4, g4);
-      return `<div class="dist-row${g4 ? '' : ' none'}"${extra} title="Показать сделки группы 4+ в таблице">
+      return `<div class="dist-row${g4 ? '' : ' none'}">
         <span class="dist-l"><i style="background:${dot}"></i>${esc(label)}</span>
         <span class="dist-bar"><i data-w="${p}" style="background:${wdColor(p)}"></i></span>
         <span class="dist-v"><b>${fmt(w4)}</b>/${fmt(g4)} <em>(${g4 ? p + '%' : '—'})</em></span></div>`;
@@ -630,114 +581,18 @@
       html = st.rows.map((r) => `<div class="dist-g">
         <div class="dist-h"><span class="tdot" style="background:${tagColor(r.tag.id)}"></span><b>${esc(r.tag.name)}</b>
           <span class="dist-t" title="взято в работу из 4+ / распределено из 4+">${fmt(r.worked4)}/${fmt(r.g4)}</span></div>
-        ${ms.filter((m) => r.g4m[m.name]).map((m) => bar(m.short, tMgrColor(m.name), r.m4[m.name] || 0, r.g4m[m.name], ` data-t="${r.tag.id}" data-m="${esc(m.name)}"`)).join('')}
+        ${ms.filter((m) => r.g4m[m.name]).map((m) => bar(m.short, tMgrColor(m.name), r.m4[m.name] || 0, r.g4m[m.name])).join('')}
       </div>`).join('');
     } else {
       html = ms.map((m) => `<div class="dist-g">
         <div class="dist-h"><span class="tdot round" style="background:${tMgrColor(m.name)}"></span><b>${esc(m.name)}</b>
           <span class="dist-t" title="взято в работу из 4+ / распределено из 4+">${fmt(st.total.m4[m.name] || 0)}/${fmt(st.total.g4m[m.name] || 0)}</span></div>
-        ${st.rows.filter((r) => r.g4m[m.name]).map((r) => bar(r.tag.short, tagColor(r.tag.id), r.m4[m.name] || 0, r.g4m[m.name], ` data-t="${r.tag.id}" data-m="${esc(m.name)}"`)).join('')}
+        ${st.rows.filter((r) => r.g4m[m.name]).map((r) => bar(r.tag.short, tagColor(r.tag.id), r.m4[m.name] || 0, r.g4m[m.name])).join('')}
       </div>`).join('');
     }
     $('#distGrid').innerHTML = html;
     $('#distGrid').classList.toggle('by-mgr', T.dist === 'mgr');
     requestAnimationFrame(() => $$('#distGrid .dist-bar i').forEach((b) => (b.style.width = b.dataset.w + '%')));
-    $$('#distGrid .dist-row[data-t]').forEach((row) => {
-      row.onclick = () => {
-        T.tag = row.dataset.t; T.mgr = row.dataset.m; T.worked = ''; T.g4 = '1'; T.limit = 60; syncTagFilters();
-        $$('#tagTable tbody tr').forEach((x) => x.classList.toggle('on', x.dataset.t === T.tag));
-        renderTagDeals();
-        $('#tagDealsCard').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-      };
-    });
-  }
-
-  const stackTotals = {
-    id: 'stackTotals',
-    afterDatasetsDraw(chart) {
-      const { ctx } = chart, n = chart.data.labels.length;
-      for (let i = 0; i < n; i++) {
-        let sum = 0, top = null;
-        chart.data.datasets.forEach((ds, di) => {
-          const meta = chart.getDatasetMeta(di); if (meta.hidden) return;
-          sum += ds.data[i] || 0; const el = meta.data[i]; if (el && (top === null || el.y < top)) top = el.y;
-        });
-        if (top === null) continue;
-        const x = chart.getDatasetMeta(0).data[i].x;
-        ctx.save(); ctx.fillStyle = cssVar('--text'); ctx.font = `700 14px ${Chart.defaults.font.family}`; ctx.textAlign = 'center';
-        ctx.fillText(fmt(sum), x, top - 8); ctx.restore();
-      }
-    },
-  };
-  function renderTagChart() {
-    const st = tagStats(), ms = tMgrs().filter((m) => st.total.m[m.name] > 0);
-    const mob = matchMedia('(max-width:640px)').matches;
-    let labels, datasets;
-    if (T.byMgr) {
-      labels = ms.map((m) => m.short);
-      datasets = st.rows.map((r) => ({ label: r.tag.short, data: ms.map((m) => r.m[m.name] || 0), backgroundColor: tagColor(r.tag.id), borderRadius: 6, borderSkipped: false, maxBarThickness: 90 }));
-    } else {
-      labels = st.rows.map((r) => (mob ? r.tag.short.split(' ').reduce((a, w) => { const l = a[a.length - 1]; if (l && (l + ' ' + w).length <= 12) a[a.length - 1] = l + ' ' + w; else a.push(w); return a; }, []) : r.tag.short));
-      datasets = ms.map((m) => ({ label: m.short, data: st.rows.map((r) => r.m[m.name] || 0), backgroundColor: tMgrColor(m.name), borderRadius: 6, borderSkipped: false, maxBarThickness: 90 }));
-    }
-    upsert('tagChart', {
-      type: 'bar',
-      data: { labels, datasets },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        layout: { padding: { top: 24 } },
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 10, padding: mob ? 10 : 16, font: { size: mob ? 11 : 12 } } },
-          tooltip: { filter: (it) => it.raw > 0, callbacks: { footer: (items) => `Итого: ${fmt(items.reduce((s, i) => s + i.raw, 0))}` } },
-        },
-        scales: {
-          x: { stacked: true, grid: { display: false }, ticks: { font: { size: mob ? 10 : 12 }, maxRotation: 0, autoSkip: false } },
-          y: { stacked: true, beginAtZero: true, grid: { color: cssVar('--line') }, ticks: { precision: 0 } },
-        },
-      },
-      plugins: [stackTotals],
-    });
-  }
-
-  function renderTagDeals() {
-    const td = S.data.tags, known = new Set(td.managers.map((m) => m.name));
-    let rows = td.deals.filter((d) =>
-      (!T.tag || String(d.tag) === T.tag)
-      && (!T.mgr || (T.mgr === '__other' ? !known.has(d.manager) : d.manager === T.mgr))
-      && (T.worked === '' || d.worked === (T.worked === '1'))
-      && (T.g4 === '' || d.g4 === (T.g4 === '1')));
-    if (T.q) rows = rows.filter((d) => [d.name, d.stage, d.manager, d.id, tagObj(d.tag).name].join(' ').toLowerCase().includes(T.q));
-    const k = T.sortK, dir = T.sortDir, numK = k === 'group' || k === 'vacancies' || k === 'tag';
-    rows.sort((a, b) => {
-      let r;
-      if (numK) {
-        const x = a[k], y = b[k];
-        if (x === null || x === undefined) return (y === null || y === undefined) ? 0 : 1; // пустые всегда внизу
-        if (y === null || y === undefined) return -1;
-        r = (x - y) * dir;
-      } else r = String(a[k] || '').localeCompare(String(b[k] || ''), 'ru') * dir;
-      return r || (b.vacancies || 0) - (a.vacancies || 0) || String(a.name).localeCompare(String(b.name), 'ru');
-    });
-    $$('#tagDealsCard th[data-k]').forEach((th) => { th.classList.toggle('sorted', th.dataset.k === k); th.classList.toggle('desc', th.dataset.k === k && dir < 0); });
-    $('#tdCount').textContent = fmt(rows.length);
-    $('#tfReset').hidden = !(T.tag || T.mgr || T.worked || T.g4 || T.q);
-    const url = (id) => (td.url || 'https://nikolaybelov.amocrm.ru/leads/detail/{}').replace('{}', encodeURIComponent(id));
-    $('#tdRows').innerHTML = rows.slice(0, T.limit).map((d) => {
-      const t = tagObj(d.tag), c = tagColor(d.tag);
-      return `<tr class="${d.worked ? '' : 'nw'}">
-        <td class="co"><a class="dl" href="${esc(url(d.id))}" target="_blank" rel="noopener noreferrer" title="Открыть в AmoCRM">${esc(d.name || '#' + d.id)}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></a></td>
-        <td><span class="rtag" style="color:${c};background:${alpha(c, 0.12)}" title="${esc(t.name)}">${esc(t.short)}</span></td>
-        <td><span class="stage${d.worked ? '' : ' new'}">${esc(d.stage || '—')}</span></td>
-        <td><span class="who"><i style="background:${tMgrColor(d.manager)}"></i>${esc(tMgrShort(d.manager))}</span></td>
-        <td class="num" data-l="Группа">${fmtNum(d.group)}</td>
-        <td class="num" data-l="Вакансии">${fmtNum(d.vacancies)}</td>
-      </tr>`;
-    }).join('');
-    $('#tdEmpty').hidden = rows.length > 0;
-    const left = rows.length - Math.min(rows.length, T.limit);
-    $('#tdMore').hidden = left <= 0;
-    $('#tdMore').textContent = `Показать ещё ${fmt(Math.min(100, left))} из ${fmt(left)}`;
   }
 
   // перерисовать графики при смене системной темы, если пользователь тему не выбирал
