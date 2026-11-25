@@ -179,7 +179,13 @@
 
         <section class="grid g-1">
           <article class="card">
-            <header class="card-h"><h2>Итоги по тегам</h2><span class="muted sm">у менеджеров: взято в работу из 4+ / распределено из 4+ · только сделки группы 4+</span></header>
+            <header class="card-h">
+              <h2>Итоги по тегам</h2>
+              <div class="card-h-r">
+                <button type="button" class="linkish" id="tagShowAll" hidden>показать все</button>
+                <span class="muted sm">у менеджеров: взято в работу из 4+ / распределено из 4+ · только сделки группы 4+</span>
+              </div>
+            </header>
             <div class="tt-wrap">
               <table class="tt" id="tagTable">
                 <thead></thead><tbody></tbody><tfoot></tfoot>
@@ -207,7 +213,10 @@
                 <h2>Вебинары</h2>
                 <p class="muted sm sub" id="webNote">все сделки, без фильтра по группе</p>
               </div>
-              <span class="asof" id="webAsOf" hidden>Данные на —</span>
+              <div class="card-h-r">
+                <button type="button" class="linkish" id="webShowAll" hidden>показать все</button>
+                <span class="asof" id="webAsOf" hidden>Данные на —</span>
+              </div>
             </header>
             <div class="tt-wrap">
               <table class="tt" id="webTable">

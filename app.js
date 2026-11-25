@@ -472,7 +472,33 @@
 
   /* ---------------- теги ---------------- */
   const TAG_COLORS = ['#4f46e5', '#0ea5e9', '#e11d48', '#f59e0b', '#10b981', '#a855f7', '#64748b'];
-  const T = { tag: '', dist: 'tag', web: '', webDist: 'tag' };
+  const T = { tag: '', dist: 'tag', web: '', webDist: 'tag', tagVis: {}, webVis: {} };
+  const TAG_VIS_KEY = 'dash-tag-vis-v1';
+  const WEB_VIS_KEY = 'dash-web-vis-v1';
+  const EYE_ON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const EYE_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 10.6A3 3 0 0 0 12 15a3 3 0 0 0 2.4-4.4"/><path d="M9.9 5.2A11 11 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 3.8"/><path d="M6.6 6.6C4.1 8.3 2 12 2 12s3.5 7 10 7a10 10 0 0 0 4.3-.9"/></svg>';
+  function loadVis(key) {
+    try {
+      const o = JSON.parse(localStorage.getItem(key) || '{}');
+      return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+    } catch (e) { return {}; }
+  }
+  function saveVis(key, map) {
+    try { localStorage.setItem(key, JSON.stringify(map)); } catch (e) {}
+  }
+  const isOn = (map, id) => map[String(id)] !== false;
+  function setVis(kind, id, on) {
+    const key = kind === 'web' ? WEB_VIS_KEY : TAG_VIS_KEY;
+    const map = kind === 'web' ? T.webVis : T.tagVis;
+    map[String(id)] = !!on;
+    saveVis(key, map);
+  }
+  function showAll(kind) {
+    if (kind === 'web') { T.webVis = {}; saveVis(WEB_VIS_KEY, T.webVis); }
+    else { T.tagVis = {}; saveVis(TAG_VIS_KEY, T.tagVis); }
+  }
+  const eyeBtn = (kind, id, on) => `<button type="button" class="eye${on ? '' : ' off'}" data-kind="${kind}" data-id="${esc(String(id))}" aria-pressed="${on ? 'true' : 'false'}" aria-label="${on ? 'Скрыть' : 'Показать'} выгрузку" title="${on ? 'Скрыть выгрузку' : 'Показать выгрузку'}">${on ? EYE_ON : EYE_OFF}</button>`;
+
   const wdColor = (p) => (p >= 100 ? 'var(--good)' : p >= 50 ? 'var(--accent)' : p >= 20 ? '#f59e0b' : 'var(--bad)');
   const wdPct = (w, d) => (d ? Math.round((w / d) * 100) : 0);
   const tagColor = (id) => TAG_COLORS[(S.data.tags.tags.findIndex((t) => t.id === id) + TAG_COLORS.length) % TAG_COLORS.length];
@@ -503,20 +529,34 @@
       r.pct = pct1(r.worked4, r.g4);
       return r;
     };
-    return { rows: S.data.tags.tags.map((t) => ({ tag: t, ...row(deals.filter((d) => d.tag === t.id)) })), total: row(deals) };
+    const rows = S.data.tags.tags.map((t) => ({ tag: t, on: isOn(T.tagVis, t.id), ...row(deals.filter((d) => d.tag === t.id)) }));
+    const vis = rows.filter((r) => r.on);
+    const total = row(deals.filter((d) => isOn(T.tagVis, d.tag)));
+    return { rows, vis, total, hidden: rows.length - vis.length };
   }
 
   function initTags() {
+    T.tagVis = loadVis(TAG_VIS_KEY);
+    T.webVis = loadVis(WEB_VIS_KEY);
     $('#distSeg').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; T.dist = b.dataset.d; segOn('#distSeg', b); renderDist(); };
     const webSeg = $('#webDistSeg');
     if (webSeg) webSeg.onclick = (e) => { const b = e.target.closest('button'); if (!b) return; T.webDist = b.dataset.d; segOn('#webDistSeg', b); renderWebDist(); };
+    const showTags = $('#tagShowAll');
+    if (showTags) showTags.onclick = () => { showAll('tag'); renderTags(false); };
+    const showWeb = $('#webShowAll');
+    if (showWeb) showWeb.onclick = () => { showAll('web'); renderWebinars(); };
   }
 
   function renderTags(animate) {
     const td = S.data.tags, st = tagStats(), tot = st.total;
     const asOf = new Date(td.updated + 'T00:00').toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
     $('#tagAsOf').textContent = `Данные на ${asOf}`;
-    $('#tagSub').textContent = `Воронка «Телемаркетинг» · ${td.tags.length} тегов · ${fmt(tot.total)} сделок · данные на ${asOf}`;
+    const nAll = td.tags.length, nVis = nAll - st.hidden;
+    $('#tagSub').textContent = st.hidden
+      ? `Воронка «Телемаркетинг» · ${fmt(nVis)} из ${fmt(nAll)} тегов · ${fmt(tot.total)} сделок · данные на ${asOf}`
+      : `Воронка «Телемаркетинг» · ${fmt(nAll)} тегов · ${fmt(tot.total)} сделок · данные на ${asOf}`;
+    const showAllBtn = $('#tagShowAll');
+    if (showAllBtn) showAllBtn.hidden = !st.hidden;
     $('#footSrc').textContent = `Источник: ${td.source || 'AmoCRM'}.`;
     $('#footUpd').textContent = dLong(td.updated);
 
@@ -530,17 +570,25 @@
         const w4 = r.m4[m.name] || 0, g4 = r.g4m[m.name] || 0, p = wdPct(w4, g4);
         return g4 ? `<td class="mg wd" title="${esc(m.short)}: взято в работу ${w4} из ${g4} распределённых сделок группы 4+"><div class="wd-c"><span class="wd-n"><b>${fmt(w4)}</b>/${fmt(g4)}</span><span class="wd-p">${p}%</span></div><span class="pbar xs"><i data-w="${p}" style="background:${wdColor(p)}"></i></span></td>`
           : '<td class="mg wd zero"><div class="wd-c"><span class="wd-n">—</span></div></td>'; }).join('')}`;
-    $('tbody', tbl).innerHTML = st.rows.map((r) => `<tr data-t="${r.tag.id}" tabindex="0" class="${String(r.tag.id) === T.tag ? 'on' : ''}">
-      <td class="tname"><span class="tdot" style="background:${tagColor(r.tag.id)}"></span><span>${esc(r.tag.name)}</span></td>${cells(r)}</tr>`).join('');
-    $('tfoot', tbl).innerHTML = `<tr><td class="tname">Итого</td>${cells(tot)}</tr>`;
+    $('tbody', tbl).innerHTML = st.rows.map((r) => `<tr data-t="${r.tag.id}" tabindex="0" class="${r.on ? '' : 'dim'}${String(r.tag.id) === T.tag ? ' on' : ''}">
+      <td class="tname"><span class="tname-in">${eyeBtn('tag', r.tag.id, r.on)}<span class="tdot" style="background:${tagColor(r.tag.id)}"></span><span>${esc(r.tag.name)}</span></span></td>${cells(r)}</tr>`).join('');
+    $('tfoot', tbl).innerHTML = `<tr><td class="tname"><span class="tname-in"><span>Итого${st.hidden ? ` <span class="muted sm">(${fmt(nVis)} из ${fmt(nAll)})</span>` : ''}</span></span></td>${cells(tot)}</tr>`;
     requestAnimationFrame(() => $$('#tagTable .pbar i[data-w]').forEach((b) => (b.style.width = b.dataset.w + '%')));
     $$('#tagTable tbody tr').forEach((tr) => {
-      const pick = () => {
+      const pick = (e) => {
+        if (e && e.target.closest && e.target.closest('.eye')) return;
         T.tag = T.tag === tr.dataset.t ? '' : tr.dataset.t;
         $$('#tagTable tbody tr').forEach((x) => x.classList.toggle('on', x.dataset.t === T.tag));
       };
       tr.onclick = pick;
-      tr.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } };
+      tr.onkeydown = (e) => { if (e.target.closest && e.target.closest('.eye')) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(e); } };
+    });
+    $$('#tagTable .eye').forEach((btn) => {
+      btn.onclick = (e) => {
+        e.preventDefault(); e.stopPropagation();
+        setVis('tag', btn.dataset.id, !isOn(T.tagVis, btn.dataset.id));
+        renderTags(false);
+      };
     });
 
     renderDist();
@@ -557,8 +605,9 @@
         <span class="dist-v"><b>${fmt(w4)}</b>/${fmt(g4)} <em>(${g4 ? p + '%' : '—'})</em></span></div>`;
     };
     let html;
+    const vis = st.vis || st.rows.filter((r) => r.on !== false);
     if (T.dist === 'tag') {
-      html = st.rows.map((r) => `<div class="dist-g">
+      html = vis.map((r) => `<div class="dist-g">
         <div class="dist-h"><span class="tdot" style="background:${tagColor(r.tag.id)}"></span><b>${esc(r.tag.name)}</b>
           <span class="dist-t" title="взято в работу из 4+ / распределено из 4+">${fmt(r.worked4)}/${fmt(r.g4)}</span></div>
         ${ms.filter((m) => r.g4m[m.name]).map((m) => bar(m.short, tMgrColor(m.name), r.m4[m.name] || 0, r.g4m[m.name])).join('')}
@@ -567,7 +616,7 @@
       html = ms.map((m) => `<div class="dist-g">
         <div class="dist-h"><span class="tdot round" style="background:${tMgrColor(m.name)}"></span><b>${esc(m.name)}</b>
           <span class="dist-t" title="взято в работу из 4+ / распределено из 4+">${fmt(st.total.m4[m.name] || 0)}/${fmt(st.total.g4m[m.name] || 0)}</span></div>
-        ${st.rows.filter((r) => r.g4m[m.name]).map((r) => bar(r.tag.short, tagColor(r.tag.id), r.m4[m.name] || 0, r.g4m[m.name])).join('')}
+        ${vis.filter((r) => r.g4m[m.name]).map((r) => bar(r.tag.short, tagColor(r.tag.id), r.m4[m.name] || 0, r.g4m[m.name])).join('')}
       </div>`).join('');
     }
     $('#distGrid').innerHTML = html;
@@ -598,7 +647,10 @@
       r.pct = pct1(r.worked, r.total);
       return r;
     };
-    return { rows: ((w && w.tags) || []).map((t) => ({ tag: t, ...row(deals.filter((d) => d.tag === t.id)) })), total: row(deals) };
+    const rows = ((w && w.tags) || []).map((t) => ({ tag: t, on: isOn(T.webVis, t.id), ...row(deals.filter((d) => d.tag === t.id)) }));
+    const vis = rows.filter((r) => r.on);
+    const total = row(deals.filter((d) => isOn(T.webVis, d.tag)));
+    return { rows, vis, total, hidden: rows.length - vis.length };
   }
   function renderWebinars() {
     const box = $('#webinarsBlock');
@@ -608,7 +660,9 @@
     box.hidden = false;
     const st = webStats(), tot = st.total, ms = wMgrs();
     const note = w.note || 'все сделки, без фильтра по группе';
-    if ($('#webNote')) $('#webNote').textContent = note;
+    if ($('#webNote')) $('#webNote').textContent = note + (st.hidden ? ` · ${fmt(st.rows.length - st.hidden)} из ${fmt(st.rows.length)} тегов` : '');
+    const webAll = $('#webShowAll');
+    if (webAll) webAll.hidden = !st.hidden;
     const asEl = $('#webAsOf');
     if (asEl) {
       if (w.updated) {
@@ -626,17 +680,25 @@
         const ww = r.m[m.name] || 0, tt = r.d[m.name] || 0, p = wdPct(ww, tt);
         return tt ? `<td class="mg wd" title="${esc(m.short)}: взято в работу ${ww} из ${tt} сделок"><div class="wd-c"><span class="wd-n"><b>${fmt(ww)}</b>/${fmt(tt)}</span><span class="wd-p">${p}%</span></div><span class="pbar xs"><i data-w="${p}" style="background:${wdColor(p)}"></i></span></td>`
           : '<td class="mg wd zero"><div class="wd-c"><span class="wd-n">—</span></div></td>'; }).join('')}`;
-    $('tbody', tbl).innerHTML = st.rows.map((r) => `<tr data-t="${esc(String(r.tag.id))}" tabindex="0" class="${String(r.tag.id) === T.web ? 'on' : ''}">
-      <td class="tname" title="${esc(r.tag.name)}${r.tag.crm ? ' · тег ' + r.tag.crm : ''}"><span class="tdot" style="background:${webColor(r.tag.id)}"></span><span>${esc(r.tag.name)}</span></td>${cells(r)}</tr>`).join('');
-    $('tfoot', tbl).innerHTML = `<tr><td class="tname">Итого</td>${cells(tot)}</tr>`;
+    $('tbody', tbl).innerHTML = st.rows.map((r) => `<tr data-t="${esc(String(r.tag.id))}" tabindex="0" class="${r.on ? '' : 'dim'}${String(r.tag.id) === T.web ? ' on' : ''}">
+      <td class="tname" title="${esc(r.tag.name)}${r.tag.crm ? ' · тег ' + r.tag.crm : ''}"><span class="tname-in">${eyeBtn('web', r.tag.id, r.on)}<span class="tdot" style="background:${webColor(r.tag.id)}"></span><span>${esc(r.tag.name)}</span></span></td>${cells(r)}</tr>`).join('');
+    $('tfoot', tbl).innerHTML = `<tr><td class="tname"><span class="tname-in"><span>Итого${st.hidden ? ` <span class="muted sm">(${fmt(st.rows.length - st.hidden)} из ${fmt(st.rows.length)})</span>` : ''}</span></span></td>${cells(tot)}</tr>`;
     requestAnimationFrame(() => $$('#webTable .pbar i[data-w]').forEach((b) => (b.style.width = b.dataset.w + '%')));
     $$('#webTable tbody tr').forEach((tr) => {
-      const pick = () => {
+      const pick = (e) => {
+        if (e && e.target.closest && e.target.closest('.eye')) return;
         T.web = T.web === tr.dataset.t ? '' : tr.dataset.t;
         $$('#webTable tbody tr').forEach((x) => x.classList.toggle('on', x.dataset.t === T.web));
       };
       tr.onclick = pick;
-      tr.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } };
+      tr.onkeydown = (e) => { if (e.target.closest && e.target.closest('.eye')) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(e); } };
+    });
+    $$('#webTable .eye').forEach((btn) => {
+      btn.onclick = (e) => {
+        e.preventDefault(); e.stopPropagation();
+        setVis('web', btn.dataset.id, !isOn(T.webVis, btn.dataset.id));
+        renderWebinars();
+      };
     });
     renderWebDist();
   }
@@ -652,8 +714,9 @@
         <span class="dist-v"><b>${fmt(ww)}</b>/${fmt(tt)} <em>(${tt ? p + '%' : '—'})</em></span></div>`;
     };
     let html;
+    const vis = st.vis || st.rows.filter((r) => r.on !== false);
     if (T.webDist === 'tag') {
-      html = st.rows.map((r) => `<div class="dist-g">
+      html = vis.map((r) => `<div class="dist-g">
         <div class="dist-h"><span class="tdot" style="background:${webColor(r.tag.id)}"></span><b>${esc(r.tag.name)}</b>
           <span class="dist-t" title="взято в работу / всего">${fmt(r.worked)}/${fmt(r.total)}</span></div>
         ${ms.filter((m) => r.d[m.name]).map((m) => bar(m.short, tMgrColor(m.name), r.m[m.name] || 0, r.d[m.name])).join('')}
@@ -662,7 +725,7 @@
       html = ms.map((m) => `<div class="dist-g">
         <div class="dist-h"><span class="tdot round" style="background:${tMgrColor(m.name)}"></span><b>${esc(m.name)}</b>
           <span class="dist-t" title="взято в работу / всего">${fmt(st.total.m[m.name] || 0)}/${fmt(st.total.d[m.name] || 0)}</span></div>
-        ${st.rows.filter((r) => r.d[m.name]).map((r) => bar(r.tag.short, webColor(r.tag.id), r.m[m.name] || 0, r.d[m.name])).join('')}
+        ${vis.filter((r) => r.d[m.name]).map((r) => bar(r.tag.short, webColor(r.tag.id), r.m[m.name] || 0, r.d[m.name])).join('')}
       </div>`).join('');
     }
     grid.innerHTML = html;
