@@ -24,17 +24,10 @@
     meetings:   { label: 'Встречи', short: 'Встречи', color: '#f59e0b', icon: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/>' },
     lost:       { label: 'Отказы', short: 'Отказы', color: '#e11d48', lowerBetter: true, icon: '<circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/>' },
     taken:      { label: 'Взяты в работу', short: 'В работу', color: '#14b8a6', icon: '<path d="M12 5v14M5 12h14"/>' },
-    instantLost:{ label: 'Сразу в отказ', short: 'Сразу в отказ', color: '#f97316', lowerBetter: true, icon: '<path d="M13 2L3 14h9l-1 8 10-12h-9z"/>' },
   };
-  const CMP_GROUPS = {
-    calls: ['attempts', 'calls30'],
-    touch: ['emails', 'messengers'],
-    result: ['meetings', 'taken', 'lost', 'instantLost'],
-  };
-  const RADAR_AXES = ['attempts', 'calls30', 'emails', 'messengers', 'meetings', 'taken'];
   const REASON_COLORS = ['#4f46e5', '#e11d48', '#f59e0b', '#0ea5e9', '#10b981', '#a855f7', '#94a3b8'];
 
-  const S = { view: 'activity', data: null, week: null, mgr: 'all', tab: 'won', reason: null, q: '', sortK: 'date', sortDir: -1, dyn: 'attempts', cmp: 'calls', charts: {}, encrypted: false };
+  const S = { view: 'activity', data: null, week: null, mgr: 'all', tab: 'won', reason: null, q: '', sortK: 'date', sortDir: -1, dyn: 'attempts', charts: {}, encrypted: false };
 
   /* ---------------- crypto ---------------- */
   async function deriveKey(pw, salt, iter) {
@@ -174,7 +167,6 @@
     };
 
     $('#dynSeg').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; S.dyn = b.dataset.m; segOn('#dynSeg', b); renderDynamics(); };
-    $('#cmpSeg').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; S.cmp = b.dataset.g; segOn('#cmpSeg', b); renderCompare(); };
     $('#dealTabs').onclick = (e) => {
       const b = e.target.closest('button'); if (!b) return;
       S.tab = b.dataset.t; if (S.tab === 'won') S.reason = null; renderReasonsSel(); renderDeals();
@@ -231,7 +223,7 @@
     $('#footUpd').textContent = dLong(S.data.weeks.updated);
     renderKpis(animate);
     renderFunnel();
-    if (window.Chart) { setChartDefaults(); renderDynamics(); renderCompare(); renderRadar(); }
+    if (window.Chart) { setChartDefaults(); renderDynamics(); }
     renderReasons();
     renderDeals();
   }
@@ -279,10 +271,6 @@
       meetings: () => (isNum(cur.meetings) && isNum(cur.calls30) ? `${pct(cur.meetings, cur.calls30)}% от звонков >30 сек` : ''),
       lost: () => '',
       taken: () => '',
-      instantLost: () => {
-        const a = isNum(cur.taken) ? cur.taken : 0, b = isNum(cur.instantLost) ? cur.instantLost : 0;
-        return (a + b) ? `${pct(b, a + b)}% новых лидов` : '';
-      },
       emails: () => '', messengers: () => '', attempts: () => '',
     };
     Object.keys(METRICS).forEach((k) => {
@@ -384,59 +372,6 @@
         scales: { y: { beginAtZero: true, suggestedMax: (numeric.length ? Math.max(...numeric) : 1) * 1.25, grid: { color: cssVar('--line') }, ticks: { precision: 0 } }, x: { grid: { display: false }, offset: single } },
       },
       plugins: [pointLabel],
-    });
-  }
-
-  function renderCompare() {
-    const keys = CMP_GROUPS[S.cmp];
-    const w = weekObj();
-    const sel = S.mgr === 'all' ? null : mgrName(S.mgr);
-    const missing = keys.every((k) => !w.rows.some((r) => isNum(r[k])));
-    const note = $('#cmpNote');
-    if (note) {
-      note.hidden = !missing;
-      if (missing) note.textContent = 'Письма и мессенджеры за эту неделю ещё не собраны';
-    }
-    const datasets = managers().map((m) => {
-      const r = w.rows.find((x) => x.manager === m.name) || {};
-      const c = mgrColor(m.name), on = !sel || sel === m.name;
-      return { label: m.short, data: keys.map((k) => r[k] || 0), backgroundColor: on ? c : alpha(c, 0.18), borderRadius: 8, borderSkipped: false, maxBarThickness: 38 };
-    });
-    upsert('cmpChart', {
-      type: 'bar',
-      data: { labels: keys.map((k) => METRICS[k].short), datasets },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, padding: 16 } } },
-        scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: cssVar('--line') } }, x: { grid: { display: false } } },
-      },
-    });
-  }
-
-  function renderRadar() {
-    const w = weekObj();
-    const sel = S.mgr === 'all' ? null : mgrName(S.mgr);
-    const axes = RADAR_AXES.filter((k) => w.rows.some((r) => isNum(r[k])));
-    const use = axes.length ? axes : RADAR_AXES;
-    const max = {};
-    use.forEach((k) => (max[k] = Math.max(1, ...w.rows.map((r) => (isNum(r[k]) ? r[k] : 0)))));
-    const datasets = managers().map((m) => {
-      const r = w.rows.find((x) => x.manager === m.name) || {};
-      const c = mgrColor(m.name), on = !sel || sel === m.name;
-      return { label: m.short, data: use.map((k) => Math.round((((isNum(r[k]) ? r[k] : 0) / max[k]) * 100))), raw: use.map((k) => (isNum(r[k]) ? r[k] : 0)),
-        borderColor: on ? c : alpha(c, 0.25), backgroundColor: alpha(c, on ? (sel ? 0.28 : 0.12) : 0.03), pointBackgroundColor: on ? c : alpha(c, 0.25), borderWidth: on && sel ? 3 : 2, pointRadius: 3 };
-    });
-    upsert('radarChart', {
-      type: 'radar',
-      data: { labels: use.map((k) => METRICS[k].short), datasets },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, padding: 16 } },
-          tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${c.dataset.raw[c.dataIndex]} (${c.raw}% от лидера)` } },
-        },
-        scales: { r: { min: 0, max: 100, ticks: { display: false, stepSize: 25 }, grid: { color: cssVar('--line') }, angleLines: { color: cssVar('--line') }, pointLabels: { font: { size: 12, weight: '600' }, color: cssVar('--muted') } } },
-      },
     });
   }
 

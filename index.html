@@ -102,25 +102,6 @@
         </article>
       </section>
 
-      <section class="grid g-2-1">
-        <article class="card">
-          <header class="card-h"><h2>Сравнение менеджеров</h2>
-            <div class="seg" id="cmpSeg" role="tablist">
-              <button data-g="calls" class="on">Звонки</button>
-              <button data-g="touch">Касания</button>
-              <button data-g="result">Результат</button>
-            </div>
-          </header>
-          <div class="chart-box h300"><canvas id="cmpChart" aria-label="Сравнение менеджеров"></canvas>
-            <div id="cmpNote" class="chart-note" hidden>Письма и мессенджеры за эту неделю ещё не собраны</div>
-          </div>
-        </article>
-        <article class="card">
-          <header class="card-h"><h2>Профиль активности</h2><span class="muted sm">в % от лидера</span></header>
-          <div class="chart-box h300"><canvas id="radarChart" aria-label="Радар активности"></canvas></div>
-        </article>
-      </section>
-
       <section class="grid g-1">
         <article class="card">
           <header class="card-h"><h2>Причины отказа</h2><span class="muted sm">нажмите на причину — отфильтруется таблица сделок</span></header>
@@ -178,8 +159,6 @@
               <dt>Встречи</dt><dd>Переходы сделки в этап «Передан в продажи».</dd>
               <dt>Отказы</dt><dd>Переходы в «Отказ от покупки». Причина берётся из поля «Причины отказа» (или «Причина отказа Sales»); «Не собрано» — причина ещё не выгружена или не указана в карточке.</dd>
               <dt>Взяты в работу</dt><dd>Сделки, переведённые из Respondo / «Новый лид_заявка с ЛК» / «Новый лид» в любой другой этап.</dd>
-              <dt>Сразу в отказ</dt><dd>Из «Нового лида» сразу в «Отказ от покупки», без касаний.</dd>
-              <dt>Профиль активности</dt><dd>Каждая ось — значение менеджера в процентах от лучшего результата команды по этой оси за неделю.</dd>
               <dt>Дельта</dt><dd>Изменение к предыдущей неделе; показывается, только если она есть в данных.</dd>
             </dl>
             <p class="muted sm">Период — рабочая неделя (пн–пт). Данные собираются из AmoCRM по воронке «Телемаркетинг» и обновляются еженедельно.</p>
