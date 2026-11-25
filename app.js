@@ -570,13 +570,16 @@
         const w4 = r.m4[m.name] || 0, g4 = r.g4m[m.name] || 0, p = wdPct(w4, g4);
         return g4 ? `<td class="mg wd" title="${esc(m.short)}: взято в работу ${w4} из ${g4} распределённых сделок группы 4+"><div class="wd-c"><span class="wd-n"><b>${fmt(w4)}</b>/${fmt(g4)}</span><span class="wd-p">${p}%</span></div><span class="pbar xs"><i data-w="${p}" style="background:${wdColor(p)}"></i></span></td>`
           : '<td class="mg wd zero"><div class="wd-c"><span class="wd-n">—</span></div></td>'; }).join('')}`;
-    $('tbody', tbl).innerHTML = st.rows.map((r) => `<tr data-t="${r.tag.id}" tabindex="0" class="${r.on ? '' : 'dim'}${String(r.tag.id) === T.tag ? ' on' : ''}">
-      <td class="tname"><span class="tname-in">${eyeBtn('tag', r.tag.id, r.on)}<span class="tdot" style="background:${tagColor(r.tag.id)}"></span><span>${esc(r.tag.name)}</span></span></td>${cells(r)}</tr>`).join('');
+    if (T.tag && !isOn(T.tagVis, T.tag)) T.tag = '';
+    const emptyCells = () => `<td class="num"></td><td class="num"></td><td class="num"></td><td class="pc"></td>${ms.map(() => '<td class="mg wd"></td>').join('')}`;
+    $('tbody', tbl).innerHTML = st.rows.map((r) => `<tr data-t="${r.tag.id}" tabindex="${r.on ? '0' : '-1'}" class="${r.on ? '' : 'dim'}${r.on && String(r.tag.id) === T.tag ? ' on' : ''}">
+      <td class="tname" title="${esc(r.tag.name)}"><span class="tname-in">${eyeBtn('tag', r.tag.id, r.on)}<span class="tdot" style="background:${tagColor(r.tag.id)}"></span><span class="tlabel">${esc(r.tag.name)}</span></span></td>${r.on ? cells(r) : emptyCells()}</tr>`).join('');
     $('tfoot', tbl).innerHTML = `<tr><td class="tname"><span class="tname-in"><span>Итого${st.hidden ? ` <span class="muted sm">(${fmt(nVis)} из ${fmt(nAll)})</span>` : ''}</span></span></td>${cells(tot)}</tr>`;
     requestAnimationFrame(() => $$('#tagTable .pbar i[data-w]').forEach((b) => (b.style.width = b.dataset.w + '%')));
     $$('#tagTable tbody tr').forEach((tr) => {
       const pick = (e) => {
         if (e && e.target.closest && e.target.closest('.eye')) return;
+        if (tr.classList.contains('dim')) return;
         T.tag = T.tag === tr.dataset.t ? '' : tr.dataset.t;
         $$('#tagTable tbody tr').forEach((x) => x.classList.toggle('on', x.dataset.t === T.tag));
       };
@@ -680,13 +683,16 @@
         const ww = r.m[m.name] || 0, tt = r.d[m.name] || 0, p = wdPct(ww, tt);
         return tt ? `<td class="mg wd" title="${esc(m.short)}: взято в работу ${ww} из ${tt} сделок"><div class="wd-c"><span class="wd-n"><b>${fmt(ww)}</b>/${fmt(tt)}</span><span class="wd-p">${p}%</span></div><span class="pbar xs"><i data-w="${p}" style="background:${wdColor(p)}"></i></span></td>`
           : '<td class="mg wd zero"><div class="wd-c"><span class="wd-n">—</span></div></td>'; }).join('')}`;
-    $('tbody', tbl).innerHTML = st.rows.map((r) => `<tr data-t="${esc(String(r.tag.id))}" tabindex="0" class="${r.on ? '' : 'dim'}${String(r.tag.id) === T.web ? ' on' : ''}">
-      <td class="tname" title="${esc(r.tag.name)}${r.tag.crm ? ' · тег ' + r.tag.crm : ''}"><span class="tname-in">${eyeBtn('web', r.tag.id, r.on)}<span class="tdot" style="background:${webColor(r.tag.id)}"></span><span>${esc(r.tag.name)}</span></span></td>${cells(r)}</tr>`).join('');
+    if (T.web && !isOn(T.webVis, T.web)) T.web = '';
+    const emptyCells = () => `<td class="num"></td><td class="num"></td><td class="pc"></td>${ms.map(() => '<td class="mg wd"></td>').join('')}`;
+    $('tbody', tbl).innerHTML = st.rows.map((r) => `<tr data-t="${esc(String(r.tag.id))}" tabindex="${r.on ? '0' : '-1'}" class="${r.on ? '' : 'dim'}${r.on && String(r.tag.id) === T.web ? ' on' : ''}">
+      <td class="tname" title="${esc(r.tag.name)}${r.tag.crm ? ' · тег ' + r.tag.crm : ''}"><span class="tname-in">${eyeBtn('web', r.tag.id, r.on)}<span class="tdot" style="background:${webColor(r.tag.id)}"></span><span class="tlabel">${esc(r.tag.name)}</span></span></td>${r.on ? cells(r) : emptyCells()}</tr>`).join('');
     $('tfoot', tbl).innerHTML = `<tr><td class="tname"><span class="tname-in"><span>Итого${st.hidden ? ` <span class="muted sm">(${fmt(st.rows.length - st.hidden)} из ${fmt(st.rows.length)})</span>` : ''}</span></span></td>${cells(tot)}</tr>`;
     requestAnimationFrame(() => $$('#webTable .pbar i[data-w]').forEach((b) => (b.style.width = b.dataset.w + '%')));
     $$('#webTable tbody tr').forEach((tr) => {
       const pick = (e) => {
         if (e && e.target.closest && e.target.closest('.eye')) return;
+        if (tr.classList.contains('dim')) return;
         T.web = T.web === tr.dataset.t ? '' : tr.dataset.t;
         $$('#webTable tbody tr').forEach((x) => x.classList.toggle('on', x.dataset.t === T.web));
       };

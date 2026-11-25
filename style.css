@@ -219,15 +219,20 @@ table.tt{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric
 .tt .eye{flex:none;width:28px;height:28px;display:inline-grid;place-items:center;margin:0;padding:0;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
 .tt .eye svg{width:16px;height:16px;display:block}
 .tt .eye:hover,.tt .eye:focus-visible{color:var(--accent);background:var(--accent-soft);outline:none}
-.tt tbody tr.dim{opacity:.46;color:var(--muted)}
-.tt tbody tr.dim .tname,.tt tbody tr.dim .wd-n b,.tt tbody tr.dim .num.b,.tt tbody tr.dim .pcell b{color:var(--muted)}
-.tt tbody tr.dim:hover{opacity:.7}
+.tt tbody tr.dim{color:var(--muted);cursor:default}
+.tt tbody tr.dim td{padding-top:6px;padding-bottom:6px}
+.tt tbody tr.dim .tname,.tt tbody tr.dim .tlabel{color:var(--muted);font-weight:500}
+.tt tbody tr.dim .tdot{display:none}
+.tt tbody tr.dim .eye{opacity:.65}
+.tt tbody tr.dim .eye:hover,.tt tbody tr.dim .eye:focus-visible{opacity:1}
+.tt tbody tr.dim:hover{background:transparent}
 .tt tbody tr.dim.on{background:transparent}
 @media (max-width:720px){
   .tt tbody tr.dim .tname{background:var(--card)}
 }
 #webinarsBlock .tt .tname{min-width:280px}
 #webinarsBlock .tt .tname .tname-in span:last-child{white-space:normal;line-height:1.35}
+#webinarsBlock .tt tbody tr.dim .tlabel{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #webinarsBlock .web-dist-h{margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
 .dist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
 .dist-g{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:color-mix(in srgb,var(--bg2) 45%,transparent)}
