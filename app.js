@@ -447,6 +447,88 @@
     },
   };
 
+  const monthGroupAxis = {
+    id: 'monthGroupAxis',
+    beforeLayout(chart, _a, opts) {
+      const scale = chart.scales && chart.scales.x;
+      if (!scale || scale._monthGroupWrapped) return;
+      const orig = scale.afterFit;
+      scale.afterFit = function () {
+        if (typeof orig === 'function') orig.call(this);
+        const o = chart.options.plugins && chart.options.plugins.monthGroupAxis;
+        if (o && o.on) this.height += (o.rowHeight || 28);
+      };
+      scale._monthGroupWrapped = true;
+    },
+    afterDraw(chart, _a, opts) {
+      if (!opts || !opts.on || !opts.groups || !opts.groups.length) return;
+      const xScale = chart.scales.x;
+      if (!xScale) return;
+      const { ctx } = chart;
+      const rowH = opts.rowHeight || 28;
+      const y0 = xScale.bottom - rowH;
+      const yLine = y0 + 3;
+      const yText = y0 + 17;
+      const n = (chart.data.labels || []).length;
+      if (!n) return;
+      const edge = (i, side) => {
+        const c = xScale.getPixelForValue(i);
+        if (side === 'left') {
+          if (i <= 0) return Math.max(xScale.left, c - (c - xScale.left));
+          return (xScale.getPixelForValue(i - 1) + c) / 2;
+        }
+        if (i >= n - 1) return xScale.right;
+        return (c + xScale.getPixelForValue(i + 1)) / 2;
+      };
+      ctx.save();
+      ctx.strokeStyle = cssVar('--muted');
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = cssVar('--muted');
+      ctx.lineWidth = 1.15;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `600 11px ${Chart.defaults.font.family}`;
+      opts.groups.forEach((g) => {
+        ctx.globalAlpha = 0.55;
+        const left = edge(g.start, 'left');
+        const right = edge(g.end, 'right');
+        const mid = (left + right) / 2;
+        const pad = 4;
+        ctx.beginPath();
+        ctx.moveTo(left + pad, yLine + 3);
+        ctx.lineTo(left + pad, yLine);
+        ctx.lineTo(right - pad, yLine);
+        ctx.lineTo(right - pad, yLine + 3);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        const label = g.label || '';
+        if (!label) return;
+        const maxW = Math.max(8, right - left - 8);
+        let fontSize = 11;
+        ctx.font = `600 ${fontSize}px ${Chart.defaults.font.family}`;
+        while (fontSize > 9 && ctx.measureText(label).width > maxW) {
+          fontSize -= 1;
+          ctx.font = `600 ${fontSize}px ${Chart.defaults.font.family}`;
+        }
+        ctx.fillText(label, mid, yText, maxW);
+      });
+      ctx.restore();
+    },
+  };
+
+  function weekMonthGroups(rows) {
+    const groups = [];
+    rows.forEach((r, i) => {
+      const id = (r.mon || '').slice(0, 7);
+      if (!id) return;
+      const last = groups[groups.length - 1];
+      const label = monthNom(id).replace(/\s+\d+$/, '');
+      if (last && last.id === id) last.end = i;
+      else groups.push({ id, label, start: i, end: i });
+    });
+    return groups;
+  }
+
   function officialWeekByMonday() {
     const map = new Map();
     (S.data.weeks.weeks || []).forEach((w) => {
@@ -597,6 +679,8 @@
     const cap = $('#dynCap'), extra = $('#dynExtra');
     if (cap) cap.hidden = true;
     if (extra) { extra.hidden = true; extra.innerHTML = ''; }
+    const box = $('#dynChart') && $('#dynChart').closest('.chart-box');
+    if (box) box.classList.remove('dyn-months');
   }
   function renderDynMoney() {
     const kind = S.dyn;
@@ -630,6 +714,8 @@
     }));
     const totalsAmt = rows.map((r) => series.reduce((s, m) => s + ((r.byMgr[m.name] || {}).amount || 0), 0));
     const max = Math.max(0, ...totalsAmt);
+    const box = $('#dynChart') && $('#dynChart').closest('.chart-box');
+    if (box) box.classList.toggle('dyn-months', kind === 'pays');
     upsert('dynChart', {
       type: 'bar',
       data: { labels, datasets },
@@ -640,6 +726,9 @@
         onClick: (_e, els) => { if (els.length) pickDynMoneyRow(kind, rows[els[0].index]); },
         onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
         plugins: {
+          monthGroupAxis: kind === 'pays'
+            ? { on: true, rowHeight: 28, groups: weekMonthGroups(rows) }
+            : { on: false, groups: [] },
           legend: { display: series.length > 1, position: 'bottom', labels: { boxWidth: 10, usePointStyle: true, pointStyle: 'rectRounded', padding: 12 } },
           tooltip: {
             callbacks: {
@@ -689,7 +778,7 @@
           },
         },
         scales: {
-          x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 45, autoSkip: true, font: { size: 11 } } },
+          x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, minRotation: 0, autoSkip: false, font: { size: 10 }, padding: 6 } },
           y: {
             stacked: true, beginAtZero: true, suggestedMax: (max || 1) * 1.28,
             grid: { color: cssVar('--line') },
@@ -697,7 +786,7 @@
           },
         },
       },
-      plugins: [pointLabel],
+      plugins: [pointLabel, monthGroupAxis],
     });
   }
 
