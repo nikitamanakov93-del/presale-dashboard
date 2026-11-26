@@ -94,11 +94,15 @@
               <button data-m="attempts" class="on">Попытки</button>
               <button data-m="calls30">&gt;30 сек</button>
               <button data-m="meetings">Встречи</button>
+              <button type="button" data-m="pays" hidden>Оплаты</button>
+              <button type="button" data-m="consents" hidden>Согласия</button>
             </div>
           </header>
           <div class="chart-box h260"><canvas id="dynChart" aria-label="Динамика по неделям"></canvas>
             <div id="dynNote" class="chart-note" hidden>Динамика появится со следующей недели</div>
           </div>
+          <p id="dynCap" class="muted sm note dyn-cap" hidden></p>
+          <div id="dynExtra" class="dyn-extra" hidden></div>
         </article>
       </section>
 

@@ -13,6 +13,13 @@
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (n) => Number(n).toLocaleString('ru-RU');
   const fmtRub = (n) => `${fmt(Math.round(Number(n) || 0))}\u00a0₽`;
+  const fmtRubShort = (n) => {
+    const v = Math.round(Number(n) || 0);
+    const a = Math.abs(v);
+    if (a >= 1e6) return `${(v / 1e6).toLocaleString('ru-RU', { maximumFractionDigits: 2 })}\u00a0млн`;
+    if (a >= 1000) return `${(v / 1000).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}\u00a0тыс.`;
+    return fmtRub(v);
+  };
   const plural = (n, one, few, many) => {
     const n10 = Math.abs(n) % 10, n100 = Math.abs(n) % 100;
     if (n10 === 1 && n100 !== 11) return one;
@@ -262,6 +269,37 @@
   function dRange(s, e) { const f = (x) => new Date(x + 'T00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }); return `${f(s)} — ${f(e)}`; }
   function dLong(s) { if (!s) return '—'; const d = new Date(s.length <= 10 ? s + 'T00:00' : s); return isNaN(d) ? s : d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }); }
   function dShort(s) { const d = new Date(s); if (isNaN(d)) return esc(s); return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) + ', ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }); }
+  function dateFromIso(s) {
+    const [y, m, d] = String(s || '').split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+  }
+  function isoFromDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+  function mondayOf(s) {
+    const d = dateFromIso(s);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d;
+  }
+  function weekLabelMonFri(mon) {
+    const fri = addDays(mon, 4);
+    const pad = (n) => String(n).padStart(2, '0');
+    if (mon.getMonth() === fri.getMonth() && mon.getFullYear() === fri.getFullYear()) {
+      return `${pad(mon.getDate())}–${pad(fri.getDate())}.${pad(fri.getMonth() + 1)}.${fri.getFullYear()}`;
+    }
+    if (mon.getFullYear() === fri.getFullYear()) {
+      return `${pad(mon.getDate())}.${pad(mon.getMonth() + 1)}–${pad(fri.getDate())}.${pad(fri.getMonth() + 1)}.${fri.getFullYear()}`;
+    }
+    return `${pad(mon.getDate())}.${pad(mon.getMonth() + 1)}.${mon.getFullYear()}–${pad(fri.getDate())}.${pad(fri.getMonth() + 1)}.${fri.getFullYear()}`;
+  }
+  function dDayRange(a, b) {
+    const f = (d) => d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    return `${f(a)} – ${f(b)}`;
+  }
 
   function countUp(el, to) {
     if (el._cu) { cancelAnimationFrame(el._cu); el._cu = 0; }
@@ -374,15 +412,299 @@
     afterDatasetsDraw(chart, _a, opts) {
       if (!opts || !opts.on) return;
       const { ctx } = chart;
+      const fontSize = opts.fontSize || 15;
+      const offset = opts.offset || 16;
+      const fmtFn = opts.format || ((v) => fmt(v));
+      ctx.save();
+      ctx.fillStyle = cssVar('--text');
+      ctx.font = `700 ${fontSize}px ${Chart.defaults.font.family}`;
+      ctx.textAlign = 'center';
+      if (opts.stackTotal) {
+        const n = chart.data.labels.length;
+        for (let i = 0; i < n; i++) {
+          let sum = 0, top = null;
+          chart.data.datasets.forEach((ds, di) => {
+            const meta = chart.getDatasetMeta(di);
+            if (meta.hidden) return;
+            const v = Number(ds.data[i]);
+            if (isNum(v)) sum += v;
+            const pt = meta.data[i];
+            if (pt && (!top || pt.y < top.y)) top = pt;
+          });
+          if (!top || !sum) continue;
+          const text = fmtFn(sum, i);
+          if (text) ctx.fillText(text, top.x, top.y - (opts.offset || 8));
+        }
+        ctx.restore();
+        return;
+      }
       chart.data.datasets.forEach((ds, di) => chart.getDatasetMeta(di).data.forEach((pt, i) => {
-        ctx.save(); ctx.fillStyle = cssVar('--text'); ctx.font = `700 15px ${Chart.defaults.font.family}`; ctx.textAlign = 'center';
-        if (!isNum(ds.data[i])) { ctx.restore(); return; }
-        ctx.fillText(fmt(ds.data[i]), pt.x, pt.y - 16); ctx.restore();
+        if (!isNum(ds.data[i])) return;
+        const text = fmtFn(ds.data[i], i, ds);
+        if (text) ctx.fillText(text, pt.x, pt.y - offset);
       }));
+      ctx.restore();
     },
   };
 
+  function officialWeekByMonday() {
+    const map = new Map();
+    (S.data.weeks.weeks || []).forEach((w) => {
+      if (!w.start) return;
+      map.set(isoFromDate(mondayOf(w.start)), w);
+    });
+    return map;
+  }
+  function payTeam() {
+    const p = payData();
+    return (p && p.managers && p.managers.length) ? p.managers : managers();
+  }
+  function allPayItems() {
+    const p = payData();
+    return (p && p.items) || [];
+  }
+  function payWeekRows() {
+    const items = allPayItems().filter((it) => it.status === 'paid' && it.payDate);
+    const official = officialWeekByMonday();
+    const weeks = S.data.weeks.weeks || [];
+    const last = weeks.length ? mondayOf(weeks[weeks.length - 1].start) : mondayOf(isoFromDate(new Date()));
+    let first = last;
+    items.forEach((it) => {
+      const m = mondayOf(it.payDate);
+      if (m < first) first = m;
+    });
+    const mgrs = payTeam();
+    const rows = [];
+    for (let mon = new Date(first.getTime()); mon <= last; mon = addDays(mon, 7)) {
+      const key = isoFromDate(mon);
+      const off = official.get(key);
+      const sun = addDays(mon, 6);
+      const days = new Set();
+      for (let i = 0; i < 7; i++) days.add(isoFromDate(addDays(mon, i)));
+      const weekItems = items.filter((it) => days.has(it.payDate));
+      const byMgr = {};
+      mgrs.forEach((m) => { byMgr[m.name] = { count: 0, amount: 0 }; });
+      weekItems.forEach((it) => {
+        const slot = byMgr[it.manager] || (byMgr[it.manager] = { count: 0, amount: 0 });
+        slot.count += 1;
+        slot.amount += Number(it.amount) || 0;
+      });
+      rows.push({
+        mon: key,
+        sun: isoFromDate(sun),
+        label: off ? off.week : weekLabelMonFri(mon),
+        short: `${String(mon.getDate()).padStart(2, '0')}.${String(mon.getMonth() + 1).padStart(2, '0')}`,
+        weekId: off ? off.week : null,
+        current: !!(off && off.week === S.week),
+        count: weekItems.length,
+        amount: weekItems.reduce((s, it) => s + (Number(it.amount) || 0), 0),
+        byMgr,
+        range: dDayRange(mon, sun),
+      });
+    }
+    return { rows, mgrs };
+  }
+  function consentMonthRows() {
+    const items = allPayItems();
+    const mgrs = payTeam();
+    const ids = new Set();
+    items.forEach((it) => { if (it.consentMonth) ids.add(it.consentMonth); });
+    ((payData() && payData().months) || []).forEach((m) => { if (m.id) ids.add(m.id); });
+    (S.data.weeks.weeks || []).forEach((w) => { if (w.start) ids.add(w.start.slice(0, 7)); });
+    const mid = payMonthId();
+    const allRows = [...ids].sort().map((id) => {
+      const consents = uniqueConsents(items, id);
+      const byMgr = {};
+      mgrs.forEach((m) => { byMgr[m.name] = { count: 0, amount: 0 }; });
+      consents.forEach((it) => {
+        const slot = byMgr[it.manager] || (byMgr[it.manager] = { count: 0, amount: 0 });
+        slot.count += 1;
+        slot.amount += Number(it.amount) || 0;
+      });
+      return {
+        id,
+        label: monthNom(id),
+        short: monthNom(id).replace(/\s+\d+$/, ''),
+        current: id === mid,
+        count: consents.length,
+        amount: consents.reduce((s, it) => s + (it.amount || 0), 0),
+        byMgr,
+      };
+    });
+    const lastKeep = allRows.reduce((acc, r, i) => (r.count || r.amount || r.current || r.id === mid) ? i : acc, -1);
+    const rows = lastKeep >= 0 ? allRows.slice(0, lastKeep + 1) : allRows;
+    return { rows, mgrs };
+  }
+  function dynMoneyCell(count, amount) {
+    if (!count && !amount) return '<span class="muted">—</span>';
+    return `<b>${fmt(count)}</b><span class="sep">·</span><span class="rub">${fmtRub(amount)}</span>`;
+  }
+  function renderDynMoneyTable(kind, rows, mgrs) {
+    const box = $('#dynExtra');
+    if (!box) return;
+    const first = kind === 'pays' ? 'Неделя' : 'Месяц';
+    const head = [`<th>${first}</th>`, '<th class="num">Всего</th>']
+      .concat(mgrs.map((m) => `<th class="num">${esc(m.short || m.name)}</th>`)).join('');
+    const body = rows.map((r, i) => {
+      const cls = [r.current ? 'cur' : '', r.weekId ? 'clickable' : '', (kind === 'consents' && r.id) ? 'clickable' : ''].filter(Boolean).join(' ');
+      const cells = [dynMoneyCell(r.count, r.amount)].concat(mgrs.map((m) => {
+        const slot = r.byMgr[m.name] || { count: 0, amount: 0 };
+        const dim = S.mgr !== 'all' && S.mgr !== m.id ? ' dim' : '';
+        return `<td class="num${dim}">${dynMoneyCell(slot.count, slot.amount)}</td>`;
+      }));
+      const title = r.range ? ` title="${esc(r.range)}"` : '';
+      return `<tr class="${cls}" data-i="${i}"${title}><td>${esc(r.label)}</td><td class="num">${cells[0]}</td>${cells.slice(1).join('')}</tr>`;
+    }).join('');
+    box.hidden = false;
+    box.innerHTML = `<div class="dyn-table-wrap"><table class="dyn-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+    const wrap = $('.dyn-table-wrap', box);
+    const cur = $('tr.cur', box);
+    if (wrap && cur) wrap.scrollTop = Math.max(0, cur.offsetTop - (wrap.clientHeight - cur.offsetHeight - 8));
+    else if (wrap) wrap.scrollTop = wrap.scrollHeight;
+    $$('tr.clickable', box).forEach((tr) => {
+      tr.onclick = () => pickDynMoneyRow(kind, rows[Number(tr.dataset.i)]);
+    });
+  }
+  function pickDynMoneyRow(kind, row) {
+    if (!row) return;
+    if (kind === 'pays' && row.weekId && row.weekId !== S.week) {
+      S.week = row.weekId;
+      S.reason = null;
+      renderAll(true);
+      return;
+    }
+    if (kind === 'consents' && row.id) {
+      const weeks = (S.data.weeks.weeks || []).filter((w) => w.start && w.start.slice(0, 7) === row.id);
+      if (!weeks.length) return;
+      const next = weeks[weeks.length - 1].week;
+      if (next !== S.week) {
+        S.week = next;
+        S.reason = null;
+        renderAll(true);
+      }
+    }
+  }
+  function syncDynPayButtons() {
+    const has = !!(payData() && (payData().items || []).length);
+    $$('#dynSeg [data-m="pays"], #dynSeg [data-m="consents"]').forEach((b) => { b.hidden = !has; });
+    if (!has && (S.dyn === 'pays' || S.dyn === 'consents')) {
+      S.dyn = 'attempts';
+      const b = $('#dynSeg [data-m="attempts"]');
+      if (b) segOn('#dynSeg', b);
+    }
+  }
+  function hideDynMoney() {
+    const cap = $('#dynCap'), extra = $('#dynExtra');
+    if (cap) cap.hidden = true;
+    if (extra) { extra.hidden = true; extra.innerHTML = ''; }
+  }
+  function renderDynMoney() {
+    const kind = S.dyn;
+    const packed = kind === 'pays' ? payWeekRows() : consentMonthRows();
+    const { rows, mgrs } = packed;
+    const cap = $('#dynCap');
+    const note = $('#dynNote');
+    if (note) note.hidden = true;
+    if (cap) {
+      cap.hidden = false;
+      cap.textContent = kind === 'pays'
+        ? 'Оплаты — по дате поступления, понедельник–воскресенье. Недели без поступлений показаны нулём; в таблице — разбивка по менеджерам.'
+        : 'Согласия в источнике без точной даты — показываем по месяцу согласия, не раскладываем по неделям.';
+    }
+    renderDynMoneyTable(kind, rows, mgrs);
+    const shown = S.mgr === 'all' ? mgrs : mgrs.filter((m) => m.id === S.mgr);
+    const series = shown.length ? shown : mgrs;
+    const colors = series.map((m) => mgrColor(m.name));
+    const labels = rows.map((r) => r.short);
+    const datasets = series.map((m, i) => ({
+      label: m.short || m.name,
+      data: rows.map((r) => (r.byMgr[m.name] || {}).amount || 0),
+      backgroundColor: rows.map((r) => alpha(colors[i], r.current ? 0.95 : 0.72)),
+      hoverBackgroundColor: colors[i],
+      borderColor: colors[i],
+      borderWidth: rows.map((r) => (r.current ? 2 : 0)),
+      borderSkipped: false,
+      borderRadius: i === series.length - 1 ? { topLeft: 5, topRight: 5 } : 0,
+      maxBarThickness: kind === 'pays' ? 22 : 48,
+      stack: 'money',
+    }));
+    const totalsAmt = rows.map((r) => series.reduce((s, m) => s + ((r.byMgr[m.name] || {}).amount || 0), 0));
+    const max = Math.max(0, ...totalsAmt);
+    upsert('dynChart', {
+      type: 'bar',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        layout: { padding: { top: 28, bottom: 0 } },
+        interaction: { mode: 'index', intersect: false },
+        onClick: (_e, els) => { if (els.length) pickDynMoneyRow(kind, rows[els[0].index]); },
+        onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+        plugins: {
+          legend: { display: series.length > 1, position: 'bottom', labels: { boxWidth: 10, usePointStyle: true, pointStyle: 'rectRounded', padding: 12 } },
+          tooltip: {
+            callbacks: {
+              title: (items) => {
+                if (!items.length) return '';
+                const r = rows[items[0].dataIndex];
+                return kind === 'pays' ? `${r.label} · ${r.range}` : r.label;
+              },
+              label: (ctx) => {
+                const r = rows[ctx.dataIndex];
+                const m = series[ctx.datasetIndex];
+                const slot = r.byMgr[m.name] || { count: 0, amount: 0 };
+                if (!slot.count && !slot.amount) return `${m.short || m.name}: нет`;
+                return `${m.short || m.name}: ${fmt(slot.count)} · ${fmtRub(slot.amount)}`;
+              },
+              footer: (items) => {
+                if (!items.length) return '';
+                const r = rows[items[0].dataIndex];
+                const count = series.reduce((s, m) => s + ((r.byMgr[m.name] || {}).count || 0), 0);
+                const amount = series.reduce((s, m) => s + ((r.byMgr[m.name] || {}).amount || 0), 0);
+                const unit = kind === 'pays'
+                  ? plural(count, 'оплата', 'оплаты', 'оплат')
+                  : plural(count, 'согласие', 'согласия', 'согласий');
+                return `Всего: ${fmt(count)} ${unit} на ${fmtRub(amount)}`;
+              },
+            },
+          },
+          pointLabel: {
+            on: true,
+            stackTotal: true,
+            fontSize: kind === 'pays' ? 10 : 12,
+            offset: 8,
+            format: (_sum, i) => {
+              const amtOf = (row) => series.reduce((s, m) => s + ((row.byMgr[m.name] || {}).amount || 0), 0);
+              const cntOf = (row) => series.reduce((s, m) => s + ((row.byMgr[m.name] || {}).count || 0), 0);
+              const amount = amtOf(rows[i]);
+              if (!amount) return '';
+              if (kind === 'pays') {
+                if (amount < 80000) return '';
+                for (let j = Math.max(0, i - 2); j < i; j++) {
+                  const prev = amtOf(rows[j]);
+                  if (prev >= 80000 && amount <= prev * 1.2) return '';
+                }
+              }
+              return `${fmt(cntOf(rows[i]))} · ${fmtRubShort(amount)}`;
+            },
+          },
+        },
+        scales: {
+          x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 45, autoSkip: true, font: { size: 11 } } },
+          y: {
+            stacked: true, beginAtZero: true, suggestedMax: (max || 1) * 1.28,
+            grid: { color: cssVar('--line') },
+            ticks: { callback: (v) => fmtRubShort(v), maxTicksLimit: 5 },
+          },
+        },
+      },
+      plugins: [pointLabel],
+    });
+  }
+
   function renderDynamics() {
+    syncDynPayButtons();
+    if (S.dyn === 'pays' || S.dyn === 'consents') { renderDynMoney(); return; }
+    hideDynMoney();
     const weeks = S.data.weeks.weeks;
     const labels = weeks.map((w) => w.week);
     const vals = weeks.map((w) => totals(w)[S.dyn]);
@@ -506,16 +828,14 @@
   function payData() { return S.data && S.data.payments; }
   function payMonthId(w = weekObj()) { return (w && w.start) ? w.start.slice(0, 7) : ''; }
   function weekDateSet(w = weekObj()) {
-    // пн–вс календарной недели выбранного пн–пт (выходные относятся к этой же неделе)
+    // пн–вс календарной недели выбранного пн–пт (выходные относятся к этой же неделе).
+    // Понедельник считаем от w.start, а не «start + 7 дней»: у первой неполной недели
+    // 01–02.10 start — четверг, иначе захватили бы дни следующей недели и потеряли пн–ср.
     const out = new Set();
     if (!w || !w.start) return out;
-    const t0 = new Date(w.start + 'T00:00');
-    if (isNaN(t0)) return out;
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(t0); d.setDate(t0.getDate() + i);
-      const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
-      out.add(`${y}-${m}-${day}`);
-    }
+    const mon = mondayOf(w.start);
+    if (isNaN(mon)) return out;
+    for (let i = 0; i < 7; i++) out.add(isoFromDate(addDays(mon, i)));
     return out;
   }
   function payItems() {
