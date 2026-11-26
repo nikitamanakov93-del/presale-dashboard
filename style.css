@@ -250,10 +250,54 @@ table.tt{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric
 .dist-v{font-size:13.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums;min-width:96px;text-align:right}
 .dist-v b{color:var(--text);font-weight:750} .dist-v em{font-style:normal;font-size:12.5px}
 
+
+/* согласия и оплаты */
+.pay-card{padding-bottom:16px}
+.pay-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:4px 0 16px}
+.pay-kpi{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:16px;padding:14px 16px 12px;background:color-mix(in srgb,var(--bg2) 55%,transparent)}
+.pay-kpi::after{content:"";position:absolute;right:-24px;top:-24px;width:90px;height:90px;border-radius:50%;background:var(--kc,var(--accent));opacity:.10}
+.pay-kpi .kpi-top{font-size:12.5px}
+.pay-kpi .kpi-ic{width:26px;height:26px;border-radius:8px}
+.pay-kpi .kpi-ic svg{width:14px;height:14px}
+.pay-kpi .kpi-val{font-size:26px;margin:8px 0 2px}
+.pay-kpi .kpi-amt{font-size:14px;font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:-.01em;margin:0 0 2px}
+.pay-kpi .kpi-foot{min-height:0}
+.pay-mgrs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:0 0 18px}
+.pay-mgr{border:1px solid var(--line);border-radius:16px;padding:14px 16px;background:var(--card);min-width:0}
+.pay-mgr.dim{opacity:.45}
+.pay-mgr .who{font-weight:700;font-size:14px;margin-bottom:10px}
+.pay-mgr .who i{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:8px;vertical-align:middle}
+.pay-mgr dl{display:grid;grid-template-columns:1fr auto;gap:6px 12px;margin:0;font-size:13px}
+.pay-mgr dt{color:var(--muted);font-weight:550}
+.pay-mgr dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap;display:flex;align-items:baseline;justify-content:flex-end;gap:6px}
+.pay-mgr dd b{font-weight:750;min-width:1.2em}
+.pay-mgr dd .sep{color:var(--muted);font-weight:500}
+.pay-mgr dd .rub{color:var(--muted);font-weight:600;font-size:12.5px}
+.pay-tabs{margin:0 0 12px;flex-wrap:wrap}
+.pay-table th.num,.pay-table td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:750;white-space:nowrap}
+.pay-table .stg{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.pill.paid{color:var(--good);background:color-mix(in srgb,var(--good) 14%,transparent)}
+.pill.invoice{color:#d97706;background:color-mix(in srgb,#d97706 16%,transparent)}
+.pill.partial{color:var(--accent);background:var(--accent-soft)}
+.pill.self{color:var(--muted);background:var(--bg2);font-weight:650}
+[data-theme="dark"] .pill.invoice{color:#fbbf24}
+.pay-table .rsub{max-width:320px}
+.pay-all{margin:12px 0 0;display:flex;flex-wrap:wrap;gap:8px 18px}
+
 /* responsive */
-@media (max-width:1100px){.kpis{grid-template-columns:repeat(2,1fr)}.g-2-1{grid-template-columns:1fr}}
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(2,1fr)}.pay-kpis{grid-template-columns:repeat(2,1fr)}.g-2-1{grid-template-columns:1fr}}
 @media (max-width:860px){.g-2{grid-template-columns:1fr}.reasons{grid-template-columns:1fr}.donut{max-width:280px;margin:0 auto}}
 @media (max-width:640px){
+  .pay-kpis,.pay-mgrs{grid-template-columns:1fr;gap:10px}
+  .pay-tabs{width:100%}
+  .pay-tabs button{flex:1;justify-content:center}
+  .pay-table thead{display:none}
+  .pay-table,.pay-table tbody,.pay-table tr,.pay-table td{display:block;width:100%}
+  .pay-table tr{position:relative;border:1px solid var(--line);border-radius:14px;padding:12px 48px 12px 12px;margin-bottom:10px}
+  .pay-table td{border:0;padding:3px 0}
+  .pay-table td.num{text-align:left;font-size:16px}
+  .pay-table td.lk{position:absolute;right:10px;top:12px;width:auto;padding:0}
   .brand-sub{display:none}
   .container{padding-top:16px}
   .hero{align-items:flex-start}

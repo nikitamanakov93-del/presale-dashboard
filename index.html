@@ -102,6 +102,41 @@
         </article>
       </section>
 
+
+      <section class="grid g-1" id="payBlock" hidden>
+        <article class="card pay-card">
+          <header class="card-h wrap">
+            <div>
+              <h2>Согласия и оплаты</h2>
+              <p class="muted sm sub" id="paySub"></p>
+            </div>
+          </header>
+          <div class="pay-kpis" id="payKpis"></div>
+          <div class="pay-mgrs" id="payMgrs"></div>
+          <div class="tabs pay-tabs" id="payTabs" role="tablist" aria-label="Список согласий и оплат">
+            <button type="button" data-t="week" class="on" role="tab">Оплаты за неделю <span class="badge" id="cntPayWeek">0</span></button>
+            <button type="button" data-t="consents" role="tab">Согласия месяца <span class="badge" id="cntPayCons">0</span></button>
+            <button type="button" data-t="month" role="tab">Оплаты месяца <span class="badge" id="cntPayMonth">0</span></button>
+            <button type="button" data-t="invoice" role="tab">Ждём оплату <span class="badge" id="cntPayInv">0</span></button>
+          </div>
+          <div class="table-wrap">
+            <table class="deals pay-table">
+              <thead><tr>
+                <th>Компания</th>
+                <th>Менеджер</th>
+                <th>Дата</th>
+                <th class="num">Сумма</th>
+                <th>Статус</th>
+                <th class="col-link"><span class="sr-only">Ссылка</span></th>
+              </tr></thead>
+              <tbody id="payRows"></tbody>
+            </table>
+            <p id="payEmpty" class="empty" hidden></p>
+          </div>
+          <p class="muted sm note" id="payNote"></p>
+        </article>
+      </section>
+
       <section class="grid g-1">
         <article class="card">
           <header class="card-h"><h2>Причины отказа</h2><span class="muted sm">нажмите на причину — отфильтруется таблица сделок</span></header>
@@ -159,6 +194,9 @@
               <dt>Встречи</dt><dd>Переходы сделки в этап «Передан в продажи».</dd>
               <dt>Отказы</dt><dd>Переходы в «Отказ от покупки». Причина берётся из поля «Причины отказа» (или «Причина отказа Sales»); «Не собрано» — причина ещё не выгружена или не указана в карточке.</dd>
               <dt>Взяты в работу</dt><dd>Сделки, переведённые из Respondo / «Новый лид_заявка с ЛК» / «Новый лид» в любой другой этап.</dd>
+              <dt>Согласия</dt><dd>Клиенты, давшие согласие на покупку, из таблицы «PRE SALE Оплаты». В таблице есть только месяц согласия, без точной даты, поэтому согласия показываются за календарный месяц выбранной недели. Несколько частичных оплат одной сделки считаются одним согласием. Фильтр группы 4+ не применяется.</dd>
+              <dt>Оплаты</dt><dd>Фактические поступления: строки со статусом «Оплачено» и датой оплаты. Привязаны к выбранной неделе по дате (пн–вс той же календарной недели). Частичные оплаты одной сделки — отдельные поступления. Сумма — из колонки «Цена сделки».</dd>
+              <dt>Ждём оплату</dt><dd>Счета со статусом «Счет выставлен», оплаты по ним ещё нет. Показываются все открытые счета, не только за выбранную неделю.</dd>
               <dt>Дельта</dt><dd>Изменение к предыдущей неделе; показывается, только если она есть в данных.</dd>
             </dl>
             <p class="muted sm">Период — рабочая неделя (пн–пт). Данные собираются из AmoCRM по воронке «Телемаркетинг» и обновляются еженедельно.</p>

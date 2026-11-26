@@ -5,13 +5,38 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const FILES = ['weeks', 'reasons', 'deals'];
-  const OPT_FILES = ['tags']; // необязательные: если файла нет — вкладка просто не показывается
+  const OPT_FILES = ['tags', 'payments']; // необязательные: нет файла — блок/вкладка скрываются
   const SKEY = 'dash-key-v1';
   const te = new TextEncoder();
   const b64d = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
   const b64e = (u8) => btoa(String.fromCharCode(...new Uint8Array(u8)));
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (n) => Number(n).toLocaleString('ru-RU');
+  const fmtRub = (n) => `${fmt(Math.round(Number(n) || 0))}\u00a0₽`;
+  const plural = (n, one, few, many) => {
+    const n10 = Math.abs(n) % 10, n100 = Math.abs(n) % 100;
+    if (n10 === 1 && n100 !== 11) return one;
+    if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return few;
+    return many;
+  };
+  const MONTH_IN = { 1: 'январе', 2: 'феврале', 3: 'марте', 4: 'апреле', 5: 'мае', 6: 'июне', 7: 'июле', 8: 'августе', 9: 'сентябре', 10: 'октябре', 11: 'ноябре', 12: 'декабре' };
+  const MONTH_NOM = { 1: 'январь', 2: 'февраль', 3: 'март', 4: 'апрель', 5: 'май', 6: 'июнь', 7: 'июль', 8: 'август', 9: 'сентябрь', 10: 'октябрь', 11: 'ноябрь', 12: 'декабрь' };
+  const monthIn = (id) => {
+    if (!id) return '';
+    const [y, m] = id.split('-');
+    return `${MONTH_IN[Number(m)]} ${y}`;
+  };
+  const monthNom = (id) => {
+    if (!id) return '';
+    const [y, m] = id.split('-');
+    const n = MONTH_NOM[Number(m)] || '';
+    return `${n ? n[0].toUpperCase() + n.slice(1) : id} ${y}`;
+  };
+  const dDay = (s) => {
+    if (!s) return '—';
+    const d = new Date(s + 'T00:00');
+    return isNaN(d) ? s : d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  };
   const isNum = (v) => v != null && v !== '' && !Number.isNaN(Number(v));
   const pct = (a, b) => (isNum(a) && isNum(b) && Number(b) ? Math.round((a / b) * 100) : 0);
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -27,7 +52,7 @@
   };
   const REASON_COLORS = ['#4f46e5', '#e11d48', '#f59e0b', '#0ea5e9', '#10b981', '#a855f7', '#94a3b8'];
 
-  const S = { view: 'activity', data: null, week: null, mgr: 'all', tab: 'won', reason: null, q: '', sortK: 'date', sortDir: -1, dyn: 'attempts', charts: {}, encrypted: false };
+  const S = { view: 'activity', data: null, week: null, mgr: 'all', tab: 'won', payTab: 'week', reason: null, q: '', sortK: 'date', sortDir: -1, dyn: 'attempts', charts: {}, encrypted: false };
 
   /* ---------------- crypto ---------------- */
   async function deriveKey(pw, salt, iter) {
@@ -171,6 +196,11 @@
       const b = e.target.closest('button'); if (!b) return;
       S.tab = b.dataset.t; if (S.tab === 'won') S.reason = null; renderReasonsSel(); renderDeals();
     };
+    const payTabs = $('#payTabs');
+    if (payTabs) payTabs.onclick = (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      S.payTab = b.dataset.t; renderPayments();
+    };
     $('#q').oninput = (e) => { S.q = e.target.value.trim().toLowerCase(); renderDeals(); };
     $$('#dealsCard .deals th[data-k]').forEach((th) => (th.onclick = () => {
       const k = th.dataset.k;
@@ -226,6 +256,7 @@
     if (window.Chart) { setChartDefaults(); renderDynamics(); }
     renderReasons();
     renderDeals();
+    renderPayments();
   }
 
   function dRange(s, e) { const f = (x) => new Date(x + 'T00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }); return `${f(s)} — ${f(e)}`; }
@@ -468,6 +499,157 @@
       </tr>`;
     }).join('');
     $('#dealEmpty').hidden = rows.length > 0;
+  }
+
+
+  /* ---------------- согласия и оплаты ---------------- */
+  function payData() { return S.data && S.data.payments; }
+  function payMonthId(w = weekObj()) { return (w && w.start) ? w.start.slice(0, 7) : ''; }
+  function weekDateSet(w = weekObj()) {
+    // пн–вс календарной недели выбранного пн–пт (выходные относятся к этой же неделе)
+    const out = new Set();
+    if (!w || !w.start) return out;
+    const t0 = new Date(w.start + 'T00:00');
+    if (isNaN(t0)) return out;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(t0); d.setDate(t0.getDate() + i);
+      const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+      out.add(`${y}-${m}-${day}`);
+    }
+    return out;
+  }
+  function payItems() {
+    const p = payData();
+    if (!p) return [];
+    const name = mgrName(S.mgr);
+    return (p.items || []).filter((it) => S.mgr === 'all' || it.manager === name);
+  }
+  function uniqueConsents(items, monthId) {
+    const map = new Map();
+    items.filter((it) => it.consentMonth === monthId).forEach((it) => {
+      const g = map.get(it.id) || { id: it.id, hhid: it.hhid, company: it.company, amount: 0, consentMonth: it.consentMonth, manager: it.manager, url: it.url, note: '', notes: [], selfSourced: false, statuses: new Set() };
+      g.amount += Number(it.amount) || 0;
+      g.selfSourced = g.selfSourced || !!it.selfSourced;
+      if (it.note && !g.notes.includes(it.note)) g.notes.push(it.note);
+      g.statuses.add(it.status);
+      map.set(it.id, g);
+    });
+    return [...map.values()].map((g) => {
+      const st = g.statuses;
+      const status = st.has('paid') && st.has('invoiced') ? 'partial' : st.has('paid') ? 'paid' : st.has('invoiced') ? 'invoiced' : 'other';
+      return { ...g, status, note: g.notes.join('; '), payDate: null };
+    }).sort((a, b) => b.amount - a.amount || a.company.localeCompare(b.company, 'ru'));
+  }
+  function payStatusLabel(st) {
+    return st === 'paid' ? 'Оплачено' : st === 'invoiced' ? 'Счёт выставлен' : st === 'partial' ? 'Частично' : st || '';
+  }
+  function payStatusClass(st) {
+    return st === 'paid' ? 'paid' : st === 'invoiced' ? 'invoice' : st === 'partial' ? 'partial' : '';
+  }
+
+  function renderPayments() {
+    const box = $('#payBlock');
+    const p = payData();
+    if (!box) return;
+    if (!p || !(p.items || []).length) { box.hidden = true; return; }
+    box.hidden = false;
+    const w = weekObj();
+    const mid = payMonthId(w);
+    const days = weekDateSet(w);
+    const items = payItems();
+    const weekPays = items.filter((it) => it.status === 'paid' && it.payDate && days.has(it.payDate))
+      .sort((a, b) => String(b.payDate).localeCompare(a.payDate) || b.amount - a.amount);
+    const monthPays = items.filter((it) => it.status === 'paid' && it.payMonth === mid)
+      .sort((a, b) => String(b.payDate).localeCompare(a.payDate) || b.amount - a.amount);
+    const consents = uniqueConsents(items, mid);
+    const invoices = items.filter((it) => it.status === 'invoiced')
+      .sort((a, b) => b.amount - a.amount || a.company.localeCompare(b.company, 'ru'));
+    const weekSum = weekPays.reduce((s, it) => s + (it.amount || 0), 0);
+    const monthPaySum = monthPays.reduce((s, it) => s + (it.amount || 0), 0);
+    const consSum = consents.reduce((s, it) => s + (it.amount || 0), 0);
+    const invSum = invoices.reduce((s, it) => s + (it.amount || 0), 0);
+    const monthName = monthIn(mid);
+
+    $('#paySub').textContent = (p.source || 'Таблица оплат') + (p.updated ? ` · данные на ${dLong(p.updated)}` : '') + (monthName ? ` · согласия за ${monthName}` : '');
+
+    const kpis = [
+      { k: 'cons', color: '#4f46e5', label: monthName ? `Согласия в ${monthName}` : 'Согласия месяца', icon: '<path d="M8 11l3 3 5-6"/><path d="M20 6v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8"/>', val: consents.length, amt: consSum, foot: plural(consents.length, 'согласие', 'согласия', 'согласий') },
+      { k: 'week', color: '#059669', label: 'Оплаты за неделю', icon: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M8 15h4"/>', val: weekPays.length, amt: weekSum, foot: weekPays.length ? plural(weekPays.length, 'поступление', 'поступления', 'поступлений') : 'на этой неделе пока нет' },
+      { k: 'mpay', color: '#0ea5e9', label: monthName ? `Оплаты в ${monthName}` : 'Оплаты месяца', icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5C10 8.5 11 8 12 8s2 .6 2 2-1 2-2 2-2 .7-2 2 1 2 2 2 2-.5 2.5-1.5"/>', val: monthPays.length, amt: monthPaySum, foot: plural(monthPays.length, 'оплата', 'оплаты', 'оплат') },
+      { k: 'inv', color: '#d97706', label: 'Ждём оплату', icon: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>', val: invoices.length, amt: invSum, foot: 'счета без оплаты' },
+    ];
+    $('#payKpis').innerHTML = kpis.map((k, n) => `
+      <div class="pay-kpi" style="--kc:${k.color};animation-delay:${n * 40}ms">
+        <div class="kpi-top"><span class="kpi-ic"><svg viewBox="0 0 24 24">${k.icon}</svg></span>${esc(k.label)}</div>
+        <div class="kpi-val">${fmt(k.val)}</div>
+        <div class="kpi-amt">${fmtRub(k.amt)}</div>
+        <div class="kpi-foot">${esc(k.foot)}</div>
+      </div>`).join('');
+
+    const short = (n) => (managers().find((m) => m.name === n) || {}).short || n;
+    const mgrList = (p.managers && p.managers.length ? p.managers : managers());
+    $('#payMgrs').innerHTML = mgrList.map((m) => {
+      const name = m.name;
+      const c = uniqueConsents(items.filter((it) => it.manager === name), mid);
+      const wp = weekPays.filter((it) => it.manager === name);
+      const mp = monthPays.filter((it) => it.manager === name);
+      const inv = invoices.filter((it) => it.manager === name);
+      const dim = S.mgr !== 'all' && S.mgr !== m.id;
+      return `<div class="pay-mgr${dim ? ' dim' : ''}">
+        <div class="who"><i style="background:${mgrColor(name)}"></i>${esc(m.short || short(name))}</div>
+        <dl>
+          <dt>Согласия месяца</dt><dd><b>${fmt(c.length)}</b><span class="sep">·</span><span class="rub">${fmtRub(c.reduce((s, it) => s + it.amount, 0))}</span></dd>
+          <dt>Оплаты за неделю</dt><dd><b>${fmt(wp.length)}</b><span class="sep">·</span><span class="rub">${fmtRub(wp.reduce((s, it) => s + it.amount, 0))}</span></dd>
+          <dt>Оплаты месяца</dt><dd><b>${fmt(mp.length)}</b><span class="sep">·</span><span class="rub">${fmtRub(mp.reduce((s, it) => s + it.amount, 0))}</span></dd>
+          <dt>Ждём оплату</dt><dd><b>${fmt(inv.length)}</b><span class="sep">·</span><span class="rub">${fmtRub(inv.reduce((s, it) => s + it.amount, 0))}</span></dd>
+        </dl>
+      </div>`;
+    }).join('');
+
+    $('#cntPayWeek').textContent = weekPays.length;
+    $('#cntPayCons').textContent = consents.length;
+    $('#cntPayMonth').textContent = monthPays.length;
+    $('#cntPayInv').textContent = invoices.length;
+    $$('#payTabs button').forEach((b) => b.classList.toggle('on', b.dataset.t === S.payTab));
+
+    const lists = { week: weekPays, consents, month: monthPays, invoice: invoices };
+    const rows = lists[S.payTab] || [];
+    const emptyMsg = {
+      week: 'На этой неделе оплат пока нет. Согласия и оплаты месяца — на соседних вкладках.',
+      consents: monthName ? `В ${monthName} согласий пока нет.` : 'Согласий за этот месяц нет.',
+      month: monthName ? `В ${monthName} оплат пока нет.` : 'Оплат за этот месяц нет.',
+      invoice: 'Открытых счетов нет — все согласия уже оплачены.',
+    }[S.payTab] || 'Нет записей';
+
+    const amo = (url) => /^https:\/\//.test(url || '') ? `<a class="open" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="Открыть в AmoCRM" aria-label="Открыть в AmoCRM"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></a>` : '';
+
+    $('#payRows').innerHTML = rows.map((it) => {
+      const stc = payStatusClass(it.status);
+      const dateTxt = it.payDate ? dDay(it.payDate) : (it.consentMonth ? monthNom(it.consentMonth) : '—');
+      const pills = [`<span class="pill ${stc}">${esc(payStatusLabel(it.status))}</span>`];
+      if (it.selfSourced) pills.push('<span class="pill self">самоход</span>');
+      const sub = it.note && !/^самоход$/i.test(it.note) ? `<span class="rsub">${esc(it.note)}</span>` : '';
+      return `<tr>
+        <td class="co">${esc(it.company)}${sub}</td>
+        <td><span class="who"><i style="background:${mgrColor(it.manager)}"></i>${esc(short(it.manager))}</span></td>
+        <td class="dt">${esc(dateTxt)}</td>
+        <td class="num">${fmtRub(it.amount)}</td>
+        <td class="stg">${pills.join('')}</td>
+        <td class="lk">${amo(it.url)}</td>
+      </tr>`;
+    }).join('');
+    const empty = $('#payEmpty');
+    empty.hidden = rows.length > 0;
+    empty.textContent = emptyMsg;
+
+    const tot = p.totals || {};
+    const allDeals = tot.deals || 0;
+    const note = $('#payNote');
+    const bits = [];
+    if (allDeals) bits.push(`Всего с июля: ${fmt(allDeals)} ${plural(allDeals, 'согласие', 'согласия', 'согласий')} на ${fmtRub(tot.consented || 0)}, оплачено ${fmtRub(tot.paid || 0)}, в счетах ${fmtRub(tot.invoiced || 0)}.`);
+    bits.push('Согласия в источнике без точной даты — считаем за месяц; оплаты — по дате поступления.');
+    bits.push('Фильтр группы 4+ здесь не применяется.');
+    note.textContent = bits.join(' ');
   }
 
   /* ---------------- теги ---------------- */
